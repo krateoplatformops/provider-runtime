@@ -5,6 +5,25 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+// CredentialSelectors provides selectors for extracting credentials.
+type CredentialSelectors struct {
+	// Env is a reference to an environment variable that contains credentials
+	// that must be used to connect to the provider.
+	// +optional
+	Env *EnvSelector `json:"env,omitempty"`
+
+	// A SecretRef is a reference to a secret key that contains the credentials
+	// that must be used to connect to the provider.
+	// +optional
+	SecretRef *SecretKeySelector `json:"secretRef,omitempty"`
+}
+
+// EnvSelector selects an environment variable.
+type EnvSelector struct {
+	// Name is the name of an environment variable.
+	Name string `json:"name"`
+}
+
 // A SecretReference is a reference to a secret in an arbitrary namespace.
 type SecretReference struct {
 	// Name of the secret.
