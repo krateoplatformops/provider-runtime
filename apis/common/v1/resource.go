@@ -5,6 +5,23 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+// A SecretReference is a reference to a secret in an arbitrary namespace.
+type SecretReference struct {
+	// Name of the secret.
+	Name string `json:"name"`
+
+	// Namespace of the secret.
+	Namespace string `json:"namespace"`
+}
+
+// A SecretKeySelector is a reference to a secret key in an arbitrary namespace.
+type SecretKeySelector struct {
+	SecretReference `json:",inline"`
+
+	// The key to select.
+	Key string `json:"key"`
+}
+
 // ResourceStatus represents the observed state of a managed resource.
 type ResourceStatus struct {
 	ConditionedStatus `json:",inline"`
