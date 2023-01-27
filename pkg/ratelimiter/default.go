@@ -1,4 +1,4 @@
-// Package ratelimiter contains suggested default ratelimiters for Crossplane.
+// Package ratelimiter contains suggested default ratelimiters for providers.
 package ratelimiter
 
 import (
@@ -12,7 +12,7 @@ import (
 
 const (
 	// DefaultProviderRPS is the recommended default average requeues per
-	// second tolerated by a Crossplane provider.
+	// second tolerated by a provider.
 	//
 	// Deprecated: Use a flag
 	DefaultProviderRPS = 1

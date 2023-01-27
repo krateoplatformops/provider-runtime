@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package logging provides Crossplane's recommended logging interface.
+// Package logging provideslogging interface.
 //
 // The logging interface defined by this package is inspired by the following:
 //
@@ -44,14 +44,14 @@ import (
 type Logger interface {
 	// Info logs a message with optional structured data. Structured data must
 	// be supplied as an array that alternates between string keys and values of
-	// an arbitrary type. Use Info for messages that Crossplane operators are
-	// very likely to be concerned with when running Crossplane.
+	// an arbitrary type. Use Info for messages that operators are
+	// very likely to be concerned with when running.
 	Info(msg string, keysAndValues ...any)
 
 	// Debug logs a message with optional structured data. Structured data must
 	// be supplied as an array that alternates between string keys and values of
-	// an arbitrary type. Use Debug for messages that Crossplane operators or
-	// developers may be concerned with when debugging Crossplane.
+	// an arbitrary type. Use Debug for messages that operators or
+	// developers may be concerned with when debugging.
 	Debug(msg string, keysAndValues ...any)
 
 	// WithValues returns a Logger that will include the supplied structured

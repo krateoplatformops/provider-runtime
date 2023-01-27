@@ -21,7 +21,7 @@ func DefaultOptions() Options {
 	}
 }
 
-// Options frequently used by most Crossplane controllers.
+// Options frequently used by most controllers.
 type Options struct {
 	// The Logger controllers should use.
 	Logger logging.Logger

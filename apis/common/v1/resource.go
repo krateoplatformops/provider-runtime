@@ -48,12 +48,6 @@ type ManagedStatus struct {
 
 // A ManagedSpec defines the desired state of a managed resource.
 type ManagedSpec struct {
-	// ProviderConfigReference specifies how the provider that will be used to
-	// create, observe, update, and delete this managed resource should be
-	// configured.
-	// +kubebuilder:default={"name": "default"}
-	ProviderConfigReference *Reference `json:"providerConfigRef,omitempty"`
-
 	// DeletionPolicy specifies what will happen to the underlying external
 	// when this managed resource is deleted - either "Delete" or "Orphan" the
 	// external resource.

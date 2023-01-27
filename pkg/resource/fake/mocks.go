@@ -53,38 +53,6 @@ func (m *ManagedResourceReferencer) SetResourceReference(r *corev1.ObjectReferen
 // GetResourceReference gets the ResourceReference.
 func (m *ManagedResourceReferencer) GetResourceReference() *corev1.ObjectReference { return m.Ref }
 
-// ProviderReferencer is a mock that implements ProviderReferencer interface.
-type ProviderReferencer struct{ Ref *prv1.Reference }
-
-// SetProviderReference sets the ProviderReference.
-func (m *ProviderReferencer) SetProviderReference(p *prv1.Reference) { m.Ref = p }
-
-// GetProviderReference gets the ProviderReference.
-func (m *ProviderReferencer) GetProviderReference() *prv1.Reference { return m.Ref }
-
-// ProviderConfigReferencer is a mock that implements ProviderConfigReferencer interface.
-type ProviderConfigReferencer struct{ Ref *prv1.Reference }
-
-// SetProviderConfigReference sets the ProviderConfigReference.
-func (m *ProviderConfigReferencer) SetProviderConfigReference(p *prv1.Reference) { m.Ref = p }
-
-// GetProviderConfigReference gets the ProviderConfigReference.
-func (m *ProviderConfigReferencer) GetProviderConfigReference() *prv1.Reference { return m.Ref }
-
-// RequiredProviderConfigReferencer is a mock that implements the
-// RequiredProviderConfigReferencer interface.
-type RequiredProviderConfigReferencer struct{ Ref prv1.Reference }
-
-// SetProviderConfigReference sets the ProviderConfigReference.
-func (m *RequiredProviderConfigReferencer) SetProviderConfigReference(p prv1.Reference) {
-	m.Ref = p
-}
-
-// GetProviderConfigReference gets the ProviderConfigReference.
-func (m *RequiredProviderConfigReferencer) GetProviderConfigReference() prv1.Reference {
-	return m.Ref
-}
-
 // RequiredTypedResourceReferencer is a mock that implements the
 // RequiredTypedResourceReferencer interface.
 type RequiredTypedResourceReferencer struct{ Ref prv1.TypedReference }
@@ -147,8 +115,6 @@ func (o *Object) DeepCopyObject() runtime.Object {
 // Managed is a mock that implements Managed interface.
 type Managed struct {
 	metav1.ObjectMeta
-	ProviderReferencer
-	ProviderConfigReferencer
 	Orphanable
 	prv1.ConditionedStatus
 }
@@ -211,27 +177,4 @@ func SchemeWith(o ...runtime.Object) *runtime.Scheme {
 	s := runtime.NewScheme()
 	s.AddKnownTypes(GV, o...)
 	return s
-}
-
-// ProviderConfig is a mock implementation of the ProviderConfig interface.
-type ProviderConfig struct {
-	metav1.ObjectMeta
-
-	prv1.ConditionedStatus
-}
-
-// GetObjectKind returns schema.ObjectKind.
-func (p *ProviderConfig) GetObjectKind() schema.ObjectKind {
-	return schema.EmptyObjectKind
-}
-
-// DeepCopyObject returns a copy of the object as runtime.Object
-func (p *ProviderConfig) DeepCopyObject() runtime.Object {
-	out := &ProviderConfig{}
-	j, err := json.Marshal(p)
-	if err != nil {
-		panic(err)
-	}
-	_ = json.Unmarshal(j, out)
-	return out
 }

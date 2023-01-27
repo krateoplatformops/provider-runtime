@@ -19,7 +19,7 @@ var (
 // Reason an event occurred.
 type Reason string
 
-// An Event relating to a Crossplane resource.
+// An Event relating to a custom resource.
 type Event struct {
 	Type        Type
 	Reason      Reason

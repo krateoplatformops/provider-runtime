@@ -1,6 +1,5 @@
 // Package errors is a github.com/pkg/errors compatible API for native errors.
-// It includes only the subset of the github.com/pkg/errors API that is used by
-// the Crossplane project.
+// It includes only the subset of the github.com/pkg/errors API that is used by providers.
 package errors
 
 import (

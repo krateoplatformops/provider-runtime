@@ -211,7 +211,7 @@ func Unavailable() Condition {
 	}
 }
 
-// ReconcileSuccess returns a condition indicating that Crossplane successfully
+// ReconcileSuccess returns a condition indicating that the provider successfully
 // completed the most recent reconciliation of the resource.
 func ReconcileSuccess() Condition {
 	return Condition{
@@ -222,10 +222,10 @@ func ReconcileSuccess() Condition {
 	}
 }
 
-// ReconcileError returns a condition indicating that Crossplane encountered an
-// error while reconciling the resource. This could mean Crossplane was
+// ReconcileError returns a condition indicating that the provider encountered an
+// error while reconciling the resource. This could mean that the provider was
 // unable to update the resource to reflect its desired state, or that
-// Crossplane was unable to determine the current actual state of the resource.
+// was unable to determine the current actual state of the resource.
 func ReconcileError(err error) Condition {
 	return Condition{
 		Type:               TypeSynced,

@@ -328,7 +328,7 @@ type ExternalObservation struct {
 	// ResourceExists must be true if a corresponding external resource exists
 	// for the managed resource. Typically this is proven by the presence of an
 	// external resource of the expected kind whose unique identifier matches
-	// the managed resource's external name. Crossplane uses this information to
+	// the managed resource's external name. The Provider Runtime uses this information to
 	// determine whether it needs to create or delete the external resource.
 	ResourceExists bool
 
@@ -336,15 +336,15 @@ type ExternalObservation struct {
 	// appears to be up-to-date - i.e. updating the external resource to match
 	// the desired state of the managed resource would be a no-op. Keep in mind
 	// that often only a subset of external resource fields can be updated.
-	// Crossplane uses this information to determine whether it needs to update
+	// The Provider Runtime uses this information to determine whether it needs to update
 	// the external resource.
 	ResourceUpToDate bool
 
 	// ResourceLateInitialized should be true if the managed resource's spec was
-	// updated during its observation. A Crossplane provider may update a
+	// updated during its observation. A provider may update a
 	// managed resource's spec fields after it is created or updated, as long as
 	// the updates are limited to setting previously unset fields, and adding
-	// keys to maps. Crossplane uses this information to determine whether
+	// keys to maps. Provider Runtime uses this information to determine whether
 	// changes to the spec were made during observation that must be persisted.
 	// Note that changes to the spec will be persisted before changes to the
 	// status, and that pending changes to the status may be lost when the spec
@@ -441,7 +441,7 @@ func WithTimeout(duration time.Duration) ReconcilerOption {
 // a new reconciliation after a successful reconcile. The Reconciler requeues
 // after a specified duration when it is not actively waiting for an external
 // operation, but wishes to check whether an existing external resource needs to
-// be synced to its Crossplane Managed resource.
+// be synced to its Managed resource.
 func WithPollInterval(after time.Duration) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.pollInterval = after

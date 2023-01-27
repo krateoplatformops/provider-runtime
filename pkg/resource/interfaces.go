@@ -20,24 +20,10 @@ type Orphanable interface {
 	GetDeletionPolicy() prv1.DeletionPolicy
 }
 
-// A ProviderReferencer may reference a provider resource.
-type ProviderReferencer interface {
-	GetProviderReference() *prv1.Reference
-	SetProviderReference(p *prv1.Reference)
-}
-
-// A ProviderConfigReferencer may reference a provider config resource.
-type ProviderConfigReferencer interface {
-	GetProviderConfigReference() *prv1.Reference
-	SetProviderConfigReference(p *prv1.Reference)
-}
-
 // A Managed is a Kubernetes object representing a concrete managed
 // resource (e.g. a CloudSQL instance).
 type Managed interface {
 	Object
-	ProviderReferencer
-	ProviderConfigReferencer
 	Orphanable
 	Conditioned
 }
