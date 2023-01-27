@@ -33,7 +33,7 @@ func NewNameAsExternalName(c client.Client) *NameAsExternalName {
 }
 
 // Initialize the given managed resource.
-func (a *NameAsExternalName) Initialize(ctx context.Context, mg resource.Object) error {
+func (a *NameAsExternalName) Initialize(ctx context.Context, mg resource.Managed) error {
 	if meta.GetExternalName(mg) != "" {
 		return nil
 	}
@@ -57,7 +57,7 @@ func NewAPISimpleReferenceResolver(c client.Client) *APISimpleReferenceResolver 
 
 // ResolveReferences of the supplied managed resource by calling its
 // ResolveReferences method, if any.
-func (a *APISimpleReferenceResolver) ResolveReferences(ctx context.Context, mg resource.Object) error {
+func (a *APISimpleReferenceResolver) ResolveReferences(ctx context.Context, mg resource.Managed) error {
 	rr, ok := mg.(interface {
 		ResolveReferences(context.Context, client.Reader) error
 	})

@@ -1,3 +1,19 @@
+/*
+Copyright 2019 The Crossplane Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package managed
 
 import (
@@ -5,16 +21,17 @@ import (
 	"strings"
 	"time"
 
-	prv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
-	"github.com/krateoplatformops/provider-runtime/pkg/event"
-	"github.com/krateoplatformops/provider-runtime/pkg/logging"
-	"github.com/krateoplatformops/provider-runtime/pkg/meta"
-	"github.com/krateoplatformops/provider-runtime/pkg/resource"
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	prv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
+	"github.com/krateoplatformops/provider-runtime/pkg/errors"
+	"github.com/krateoplatformops/provider-runtime/pkg/event"
+	"github.com/krateoplatformops/provider-runtime/pkg/logging"
+	"github.com/krateoplatformops/provider-runtime/pkg/meta"
+	"github.com/krateoplatformops/provider-runtime/pkg/resource"
 )
 
 const (
@@ -88,7 +105,7 @@ func (fn CriticalAnnotationUpdateFn) UpdateCriticalAnnotations(ctx context.Conte
 // This typically involves the operations that are run before calling any
 // ExternalClient methods.
 type Initializer interface {
-	Initialize(ctx context.Context, mg resource.Object) error
+	Initialize(ctx context.Context, mg resource.Managed) error
 }
 
 // A InitializerChain chains multiple managed initializers.
@@ -96,7 +113,7 @@ type InitializerChain []Initializer
 
 // Initialize calls each Initializer serially. It returns the first
 // error it encounters, if any.
-func (cc InitializerChain) Initialize(ctx context.Context, mg resource.Object) error {
+func (cc InitializerChain) Initialize(ctx context.Context, mg resource.Managed) error {
 	for _, c := range cc {
 		if err := c.Initialize(ctx, mg); err != nil {
 			return err
@@ -107,10 +124,10 @@ func (cc InitializerChain) Initialize(ctx context.Context, mg resource.Object) e
 
 // A InitializerFn is a function that satisfies the Initializer
 // interface.
-type InitializerFn func(ctx context.Context, mg resource.Object) error
+type InitializerFn func(ctx context.Context, mg resource.Managed) error
 
 // Initialize calls InitializerFn function.
-func (m InitializerFn) Initialize(ctx context.Context, mg resource.Object) error {
+func (m InitializerFn) Initialize(ctx context.Context, mg resource.Managed) error {
 	return m(ctx, mg)
 }
 
@@ -120,15 +137,15 @@ type ReferenceResolver interface {
 	// that are references to other managed resources by updating corresponding
 	// fields, for example setting spec.network to the Network resource
 	// specified by spec.networkRef.name.
-	ResolveReferences(ctx context.Context, mg resource.Object) error
+	ResolveReferences(ctx context.Context, mg resource.Managed) error
 }
 
 // A ReferenceResolverFn is a function that satisfies the
 // ReferenceResolver interface.
-type ReferenceResolverFn func(context.Context, resource.Object) error
+type ReferenceResolverFn func(context.Context, resource.Managed) error
 
 // ResolveReferences calls ReferenceResolverFn function
-func (m ReferenceResolverFn) ResolveReferences(ctx context.Context, mg resource.Object) error {
+func (m ReferenceResolverFn) ResolveReferences(ctx context.Context, mg resource.Managed) error {
 	return m(ctx, mg)
 }
 
@@ -177,11 +194,11 @@ type ExternalConnectDisconnecter interface {
 
 // An ExternalConnectorFn is a function that satisfies the ExternalConnecter
 // interface.
-type ExternalConnectorFn func(ctx context.Context, mg resource.Object) (ExternalClient, error)
+type ExternalConnectorFn func(ctx context.Context, mg resource.Managed) (ExternalClient, error)
 
 // Connect to the provider specified by the supplied managed resource and
 // produce an ExternalClient.
-func (ec ExternalConnectorFn) Connect(ctx context.Context, mg resource.Object) (ExternalClient, error) {
+func (ec ExternalConnectorFn) Connect(ctx context.Context, mg resource.Managed) (ExternalClient, error) {
 	return ec(ctx, mg)
 }
 
@@ -197,13 +214,13 @@ func (ed ExternalDisconnectorFn) Disconnect(ctx context.Context) error {
 // ExternalConnectDisconnecterFns are functions that satisfy the
 // ExternalConnectDisconnecter interface.
 type ExternalConnectDisconnecterFns struct {
-	ConnectFn    func(ctx context.Context, mg resource.Object) (ExternalClient, error)
+	ConnectFn    func(ctx context.Context, mg resource.Managed) (ExternalClient, error)
 	DisconnectFn func(ctx context.Context) error
 }
 
 // Connect to the provider specified by the supplied managed resource and
 // produce an ExternalClient.
-func (fns ExternalConnectDisconnecterFns) Connect(ctx context.Context, mg resource.Object) (ExternalClient, error) {
+func (fns ExternalConnectDisconnecterFns) Connect(ctx context.Context, mg resource.Managed) (ExternalClient, error) {
 	return fns.ConnectFn(ctx, mg)
 }
 
@@ -382,6 +399,7 @@ type Reconciler struct {
 
 type mrManaged struct {
 	CriticalAnnotationUpdater
+
 	resource.Finalizer
 	Initializer
 	ReferenceResolver
@@ -512,7 +530,7 @@ func WithRecorder(er event.Recorder) ReconcilerOption {
 // Reconciler reconciles with a dummy, no-op 'external system' by default;
 // callers should supply an ExternalConnector that returns an ExternalClient
 // capable of managing resources in a real system.
-func NewReconciler(m manager.Manager, of schema.GroupVersionKind, o ...ReconcilerOption) *Reconciler {
+func NewReconciler(m manager.Manager, of resource.ManagedKind, o ...ReconcilerOption) *Reconciler {
 	nm := func() resource.Managed {
 		return resource.MustCreateObject(schema.GroupVersionKind(of), m.GetScheme()).(resource.Managed)
 	}
@@ -769,7 +787,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
 
-		/*creation*/
 		_, err := external.Create(externalCtx, managed)
 		if err != nil {
 			// We'll hit this condition if we can't create our external
@@ -866,7 +883,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		log.Debug("External resource differs from desired state", "diff", observation.Diff)
 	}
 
-	if err := external.Update(externalCtx, managed); err != nil {
+	err = external.Update(externalCtx, managed)
+	if err != nil {
 		// We'll hit this condition if we can't update our external resource,
 		// for example if our provider credentials don't have access to update
 		// it. If this is the first time we encounter this issue we'll be

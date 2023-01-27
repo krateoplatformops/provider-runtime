@@ -9,6 +9,18 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// A ManagedKind contains the type metadata for a kind of managed resource.
+type ManagedKind schema.GroupVersionKind
+
+// IsMissingReference returns true if an error indicates that a managed
+// resource is missing a required reference..
+func IsMissingReference(err error) bool {
+	_, ok := err.(interface { //nolint: errorlint // Skip errorlint for interface type
+		MissingReference() bool
+	})
+	return ok
+}
+
 // MustCreateObject returns a new Object of the supplied kind. It panics if the
 // kind is unknown to the supplied ObjectCreator.
 func MustCreateObject(kind schema.GroupVersionKind, oc runtime.ObjectCreater) runtime.Object {
