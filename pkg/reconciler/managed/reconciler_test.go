@@ -570,8 +570,8 @@ func TestReconciler(t *testing.T) {
 							ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
 								return ExternalObservation{ResourceExists: false}, nil
 							},
-							CreateFn: func(_ context.Context, _ resource.Managed) (ExternalCreation, error) {
-								return ExternalCreation{}, errBoom
+							CreateFn: func(_ context.Context, _ resource.Managed) error {
+								return errBoom
 							},
 						}
 						return c, nil
@@ -612,8 +612,8 @@ func TestReconciler(t *testing.T) {
 							ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
 								return ExternalObservation{ResourceExists: false}, nil
 							},
-							CreateFn: func(_ context.Context, _ resource.Managed) (ExternalCreation, error) {
-								return ExternalCreation{}, errBoom
+							CreateFn: func(_ context.Context, _ resource.Managed) error {
+								return errBoom
 							},
 						}
 						return c, nil
@@ -657,8 +657,8 @@ func TestReconciler(t *testing.T) {
 							ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
 								return ExternalObservation{ResourceExists: false}, nil
 							},
-							CreateFn: func(_ context.Context, _ resource.Managed) (ExternalCreation, error) {
-								return ExternalCreation{}, nil
+							CreateFn: func(_ context.Context, _ resource.Managed) error {
+								return nil
 							},
 						}
 						return c, nil

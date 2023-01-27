@@ -6,7 +6,7 @@ import (
 )
 
 func TestDefaultManagedRateLimiter(t *testing.T) {
-	limiter := NewDefaultManagedRateLimiter(NewDefaultProviderRateLimiter(DefaultProviderRPS))
+	limiter := NewController()
 	backoffSchedule := []int{1, 2, 4, 8, 16, 32, 60}
 	for _, d := range backoffSchedule {
 		if e, a := time.Duration(d)*time.Second, limiter.When("one"); e != a {

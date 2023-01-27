@@ -248,7 +248,7 @@ type ExternalClient interface {
 	// external resource does not exist. Create implementations may update
 	// managed resource annotations, and those updates will be persisted.
 	// All other updates will be discarded.
-	Create(ctx context.Context, mg resource.Managed) (ExternalCreation, error)
+	Create(ctx context.Context, mg resource.Managed) error
 
 	// Update the external resource represented by the supplied Managed
 	// resource, if necessary. Called unless Observe reports that the
@@ -264,7 +264,7 @@ type ExternalClient interface {
 // interface.
 type ExternalClientFns struct {
 	ObserveFn func(ctx context.Context, mg resource.Managed) (ExternalObservation, error)
-	CreateFn  func(ctx context.Context, mg resource.Managed) (ExternalCreation, error)
+	CreateFn  func(ctx context.Context, mg resource.Managed) error
 	UpdateFn  func(ctx context.Context, mg resource.Managed) error
 	DeleteFn  func(ctx context.Context, mg resource.Managed) error
 }
@@ -277,7 +277,7 @@ func (e ExternalClientFns) Observe(ctx context.Context, mg resource.Managed) (Ex
 
 // Create an external resource per the specifications of the supplied Managed
 // resource.
-func (e ExternalClientFns) Create(ctx context.Context, mg resource.Managed) (ExternalCreation, error) {
+func (e ExternalClientFns) Create(ctx context.Context, mg resource.Managed) error {
 	return e.CreateFn(ctx, mg)
 }
 
@@ -310,8 +310,8 @@ func (c *NopClient) Observe(ctx context.Context, mg resource.Managed) (ExternalO
 }
 
 // Create does nothing. It returns an empty ExternalCreation and no error.
-func (c *NopClient) Create(ctx context.Context, mg resource.Managed) (ExternalCreation, error) {
-	return ExternalCreation{}, nil
+func (c *NopClient) Create(ctx context.Context, mg resource.Managed) error {
+	return nil
 }
 
 // Update does nothing. It returns an empty ExternalUpdate and no error.
@@ -359,19 +359,6 @@ type ExternalObservation struct {
 	// finding where the observed diverges from the desired state.
 	// The string should be a cmp.Diff that details the difference.
 	Diff string
-}
-
-// An ExternalCreation is the result of the creation of an external resource.
-type ExternalCreation struct {
-	// ExternalNameAssigned should be true if the Create operation resulted
-	// in a change in the resource's external name. This is typically only
-	// needed for external resource's with unpredictable external names that
-	// are returned from the API at create time.
-	//
-	// Deprecated: The managed.Reconciler no longer needs to be informed
-	// when an external name is assigned by the Create operation. It will
-	// automatically detect and handle external name assignment.
-	ExternalNameAssigned bool
 }
 
 // A Reconciler reconciles managed resources by creating and managing the
@@ -787,7 +774,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
 
-		_, err := external.Create(externalCtx, managed)
+		err = external.Create(externalCtx, managed)
 		if err != nil {
 			// We'll hit this condition if we can't create our external
 			// resource, for example if our provider credentials don't have
