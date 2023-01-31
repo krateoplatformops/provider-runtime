@@ -95,3 +95,16 @@ func GetConfigMapValue(ctx context.Context, kube client.Client, ref *commonv1.Co
 
 	return string(cm.Data[ref.Key]), nil
 }
+
+func GetSecret(ctx context.Context, k client.Client, ref *commonv1.SecretKeySelector) (string, error) {
+	if ref == nil {
+		return "", errors.New("no credentials secret referenced")
+	}
+
+	s := &corev1.Secret{}
+	if err := k.Get(ctx, types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}, s); err != nil {
+		return "", errors.Wrapf(err, "cannot get %s secret", ref.Name)
+	}
+
+	return string(s.Data[ref.Key]), nil
+}
