@@ -1,12 +1,17 @@
 package resource
 
 import (
-	"github.com/krateoplatformops/provider-runtime/pkg/errors"
+	"context"
 
+	"github.com/krateoplatformops/provider-runtime/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	commonv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // A ManagedKind contains the type metadata for a kind of managed resource.
@@ -75,4 +80,18 @@ func IsAPIErrorWrapped(err error) bool {
 // IsConditionTrue returns if condition status is true
 func IsConditionTrue(c corev1.ConditionStatus) bool {
 	return c == corev1.ConditionTrue
+}
+
+func GetConfigMapValue(ctx context.Context, kube client.Client, ref *commonv1.ConfigMapKeySelector) (string, error) {
+	if ref == nil {
+		return "", errors.New("no configmap referenced")
+	}
+
+	cm := &corev1.ConfigMap{}
+	err := kube.Get(ctx, types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}, cm)
+	if err != nil {
+		return "", errors.Wrapf(err, "cannot get %s configmap", ref.Name)
+	}
+
+	return string(cm.Data[ref.Key]), nil
 }
