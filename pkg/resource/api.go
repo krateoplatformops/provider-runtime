@@ -2,10 +2,16 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/krateoplatformops/provider-runtime/pkg/errors"
 	"github.com/krateoplatformops/provider-runtime/pkg/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Error strings.
@@ -69,3 +75,56 @@ func (f FinalizerFns) AddFinalizer(ctx context.Context, obj Object) error {
 func (f FinalizerFns) RemoveFinalizer(ctx context.Context, obj Object) error {
 	return f.RemoveFinalizerFn(ctx, obj)
 }
+
+// An ApplyOption is called before patching the current object to match the
+// desired object. ApplyOptions are not called if no current object exists.
+type ApplyOption func(ctx context.Context, current, desired runtime.Object) error
+
+// An APIPatchingApplicator applies changes to an object by either creating or
+// patching it in a Kubernetes API server.
+type APIPatchingApplicator struct {
+	client client.Client
+}
+
+// NewAPIPatchingApplicator returns an Applicator that applies changes to an
+// object by either creating or patching it in a Kubernetes API server.
+func NewAPIPatchingApplicator(c client.Client) *APIPatchingApplicator {
+	return &APIPatchingApplicator{client: c}
+}
+
+// Apply changes to the supplied object. The object will be created if it does
+// not exist, or patched if it does. If the object does exist, it will only be
+// patched if the passed object has the same or an empty resource version.
+func (a *APIPatchingApplicator) Apply(ctx context.Context, o client.Object, ao ...ApplyOption) error {
+	m, ok := o.(metav1.Object)
+	if !ok {
+		return errors.New("cannot access object metadata")
+	}
+
+	if m.GetName() == "" && m.GetGenerateName() != "" {
+		return errors.Wrap(a.client.Create(ctx, o), "cannot create object")
+	}
+
+	desired := o.DeepCopyObject()
+
+	err := a.client.Get(ctx, types.NamespacedName{Name: m.GetName(), Namespace: m.GetNamespace()}, o)
+	if kerrors.IsNotFound(err) {
+		return errors.Wrap(a.client.Create(ctx, o), "cannot create object")
+	}
+	if err != nil {
+		return errors.Wrap(err, "cannot get object")
+	}
+
+	for _, fn := range ao {
+		if err := fn(ctx, o, desired); err != nil {
+			return err
+		}
+	}
+
+	return errors.Wrap(a.client.Patch(ctx, o, &patch{desired}), "cannot patch object")
+}
+
+type patch struct{ from runtime.Object }
+
+func (p *patch) Type() types.PatchType                { return types.MergePatchType }
+func (p *patch) Data(_ client.Object) ([]byte, error) { return json.Marshal(p.from) }
