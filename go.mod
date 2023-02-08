@@ -5,7 +5,6 @@ go 1.19
 require (
 	github.com/go-logr/logr v1.2.3
 	github.com/google/go-cmp v0.5.9
-	github.com/imdario/mergo v0.3.6
 	github.com/pkg/errors v0.9.1
 	golang.org/x/time v0.3.0
 	k8s.io/api v0.26.0
