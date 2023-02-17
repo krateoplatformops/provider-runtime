@@ -18,6 +18,10 @@ const (
 	// systems.
 	AnnotationKeyExternalName = "krateo.io/external-name"
 
+	// AnnotationKeyExternalOperation is the key in the annotations map of a
+	// async operation for the name of the resource to be created.
+	AnnotationKeyExternalOperation = "krateo.io/external-operation"
+
 	// AnnotationKeyExternalCreatePending is the key in the annotations map
 	// of a resource that indicates the last time creation of the external
 	// resource was pending (i.e. about to happen). Its value must be an
@@ -223,6 +227,16 @@ func WasCreated(o metav1.Object) bool {
 // GetExternalName returns the external name annotation value on the resource.
 func GetExternalName(o metav1.Object) string {
 	return o.GetAnnotations()[AnnotationKeyExternalName]
+}
+
+// GetExternalOperation returns the external operation annotation value on the resource.
+func GetExternalOperation(o metav1.Object) string {
+	return o.GetAnnotations()[AnnotationKeyExternalOperation]
+}
+
+// SetExternalOperation sets the external operation annotation of the resource.
+func SetExternalOperation(o metav1.Object, identifier string) {
+	AddAnnotations(o, map[string]string{AnnotationKeyExternalOperation: identifier})
 }
 
 // SetExternalName sets the external name annotation of the resource.
