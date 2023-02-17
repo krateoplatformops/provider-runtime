@@ -22,6 +22,18 @@ const (
 	errUpdateCriticalAnnotations = "cannot update critical annotations"
 )
 
+type NoopInitializer struct{ client client.Client }
+
+// NoopInitializer returns a new NoopInitializer.
+func NewNoopInitializer(c client.Client) *NoopInitializer {
+	return &NoopInitializer{client: c}
+}
+
+// Initialize the given managed resource.
+func (a *NoopInitializer) Initialize(ctx context.Context, mg resource.Managed) error {
+	return nil
+}
+
 /*
 // NameAsExternalName writes the name of the managed resource to
 // the external name annotation field in order to be used as name of
