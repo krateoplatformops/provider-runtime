@@ -22,6 +22,7 @@ const (
 	errUpdateCriticalAnnotations = "cannot update critical annotations"
 )
 
+/*
 // NameAsExternalName writes the name of the managed resource to
 // the external name annotation field in order to be used as name of
 // the external resource in provider.
@@ -40,6 +41,8 @@ func (a *NameAsExternalName) Initialize(ctx context.Context, mg resource.Managed
 	meta.SetExternalName(mg, mg.GetName())
 	return errors.Wrap(a.client.Update(ctx, mg), errUpdateManaged)
 }
+
+*/
 
 // An APISimpleReferenceResolver resolves references from one managed resource
 // to others by calling the referencing resource's ResolveReferences method, if

@@ -396,8 +396,8 @@ func defaultMRManaged(m manager.Manager) mrManaged {
 	return mrManaged{
 		CriticalAnnotationUpdater: NewRetryingCriticalAnnotationUpdater(m.GetClient()),
 		Finalizer:                 resource.NewAPIFinalizer(m.GetClient(), FinalizerName),
-		Initializer:               NewNameAsExternalName(m.GetClient()),
-		ReferenceResolver:         NewAPISimpleReferenceResolver(m.GetClient()),
+		//Initializer:               NewNameAsExternalName(m.GetClient()),
+		ReferenceResolver: NewAPISimpleReferenceResolver(m.GetClient()),
 	}
 }
 
