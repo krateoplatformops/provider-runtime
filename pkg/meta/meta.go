@@ -229,16 +229,6 @@ func GetExternalName(o metav1.Object) string {
 	return o.GetAnnotations()[AnnotationKeyExternalName]
 }
 
-// GetExternalOperation returns the external operation annotation value on the resource.
-func GetExternalOperation(o metav1.Object) string {
-	return o.GetAnnotations()[AnnotationKeyExternalOperation]
-}
-
-// SetExternalOperation sets the external operation annotation of the resource.
-func SetExternalOperation(o metav1.Object, identifier string) {
-	AddAnnotations(o, map[string]string{AnnotationKeyExternalOperation: identifier})
-}
-
 // SetExternalName sets the external name annotation of the resource.
 func SetExternalName(o metav1.Object, name string) {
 	AddAnnotations(o, map[string]string{AnnotationKeyExternalName: name})
