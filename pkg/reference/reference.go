@@ -88,18 +88,18 @@ func ToPtrValues(v []string) []*string {
 
 // To indicates the kind of managed resource a reference is to.
 type To struct {
-	Managed resource.Managed
+	Managed resource.Object // resource.Managed
 	List    resource.ManagedList
 }
 
 // An ExtractValueFn specifies how to extract a value from the resolved managed
 // resource.
-type ExtractValueFn func(resource.Managed) string
+type ExtractValueFn func(resource.Object) string
 
 // ExternalName extracts the resolved managed resource's external name from its
 // external name annotation.
 func ExternalName() ExtractValueFn {
-	return func(mg resource.Managed) string {
+	return func(mg resource.Object) string {
 		return meta.GetExternalName(mg)
 	}
 }
