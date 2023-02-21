@@ -250,34 +250,3 @@ func TestResolve(t *testing.T) {
 		})
 	}
 }
-func TestControllersMustMatch(t *testing.T) {
-	cases := map[string]struct {
-		s    *rpv1.Selector
-		want bool
-	}{
-		"NilSelector": {
-			s:    nil,
-			want: false,
-		},
-		"NilMatchControllerRef": {
-			s:    &rpv1.Selector{},
-			want: false,
-		},
-		"False": {
-			s:    &rpv1.Selector{MatchControllerRef: func() *bool { f := false; return &f }()},
-			want: false,
-		},
-		"True": {
-			s:    &rpv1.Selector{MatchControllerRef: func() *bool { t := true; return &t }()},
-			want: true,
-		},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			got := ControllersMustMatch(tc.s)
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("ControllersMustMatch(...): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}

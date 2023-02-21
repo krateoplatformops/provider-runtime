@@ -192,13 +192,3 @@ func getResolutionError(p *rpv1.Policy, err error) error {
 	}
 	return nil
 }
-
-// ControllersMustMatch returns true if the supplied Selector requires that a
-// reference be to a managed resource whose controller reference matches the
-// referencing resource.
-func ControllersMustMatch(s *rpv1.Selector) bool {
-	if s == nil {
-		return false
-	}
-	return s.MatchControllerRef != nil && *s.MatchControllerRef
-}
