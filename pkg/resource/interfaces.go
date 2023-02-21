@@ -6,6 +6,7 @@ import (
 	prv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // An Object is a Kubernetes object.
@@ -26,6 +27,14 @@ type Managed interface {
 	Object
 	Orphanable
 	Conditioned
+}
+
+// A ManagedList is a list of managed resources.
+type ManagedList interface {
+	client.ObjectList
+
+	// GetItems returns the list of managed resources.
+	GetItems() []Managed
 }
 
 // A Conditioned may have conditions set or retrieved. Conditions are typically

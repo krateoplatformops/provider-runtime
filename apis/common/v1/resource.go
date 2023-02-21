@@ -5,6 +5,20 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+// A Selector selects an object.
+type Selector struct {
+	// MatchLabels ensures an object with matching labels is selected.
+	MatchLabels map[string]string `json:"matchLabels,omitempty"`
+
+	// MatchControllerRef ensures an object with the same controller reference
+	// as the selecting object is selected.
+	MatchControllerRef *bool `json:"matchControllerRef,omitempty"`
+
+	// Policies for selection.
+	// +optional
+	Policy *Policy `json:"policy,omitempty"`
+}
+
 // CredentialSelectors provides selectors for extracting credentials.
 type CredentialSelectors struct {
 	// Env is a reference to an environment variable that contains credentials
