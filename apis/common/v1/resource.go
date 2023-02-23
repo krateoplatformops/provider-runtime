@@ -19,7 +19,7 @@ type CredentialSelectors struct {
 	// A SecretRef is a reference to a secret key that contains the credentials
 	// that must be used to connect to the provider.
 	// +optional
-	SecretRef *Reference `json:"secretRef,omitempty"`
+	SecretRef *SecretKeySelector `json:"secretRef,omitempty"`
 }
 
 // EnvSelector selects an environment variable.

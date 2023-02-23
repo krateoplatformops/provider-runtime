@@ -102,7 +102,7 @@ func (in *CredentialSelectors) DeepCopyInto(out *CredentialSelectors) {
 	}
 	if in.SecretRef != nil {
 		in, out := &in.SecretRef, &out.SecretRef
-		*out = new(Reference)
+		*out = new(SecretKeySelector)
 		**out = **in
 	}
 }
