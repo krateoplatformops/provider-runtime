@@ -8,10 +8,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
-	prv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
 	"github.com/krateoplatformops/provider-runtime/pkg/errors"
 )
 
@@ -24,115 +22,6 @@ const (
 	name         = "cool"
 	uid          = types.UID("definitely-a-uuid")
 )
-
-func TestTypedReferenceTo(t *testing.T) {
-	type args struct {
-		o  metav1.Object
-		of schema.GroupVersionKind
-	}
-	tests := map[string]struct {
-		args
-		want *prv1.TypedReference
-	}{
-		"WithTypeMeta": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: namespace,
-						Name:      name,
-						UID:       uid,
-					},
-				},
-				of: schema.GroupVersionKind{
-					Group:   group,
-					Version: version,
-					Kind:    kind,
-				},
-			},
-			want: &prv1.TypedReference{
-				APIVersion: groupVersion,
-				Kind:       kind,
-				Name:       name,
-				UID:        uid,
-			},
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			got := TypedReferenceTo(tc.args.o, tc.args.of)
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("TypedReferenceTo(): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestAsOwner(t *testing.T) {
-	tests := map[string]struct {
-		r    *prv1.TypedReference
-		want metav1.OwnerReference
-	}{
-		"Successful": {
-			r: &prv1.TypedReference{
-				APIVersion: groupVersion,
-				Kind:       kind,
-				Name:       name,
-				UID:        uid,
-			},
-			want: metav1.OwnerReference{
-				APIVersion: groupVersion,
-				Kind:       kind,
-				Name:       name,
-				UID:        uid,
-			},
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			got := AsOwner(tc.r)
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("AsOwner(): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestAsController(t *testing.T) {
-	flag := true
-
-	tests := map[string]struct {
-		r    *prv1.TypedReference
-		want metav1.OwnerReference
-	}{
-		"Successful": {
-			r: &prv1.TypedReference{
-				APIVersion: groupVersion,
-				Kind:       kind,
-				Name:       name,
-				UID:        uid,
-			},
-			want: metav1.OwnerReference{
-				APIVersion:         groupVersion,
-				Kind:               kind,
-				Name:               name,
-				UID:                uid,
-				Controller:         &flag,
-				BlockOwnerDeletion: &flag,
-			},
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			got := AsController(tc.r)
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("AsController(): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
 
 func TestHaveSameController(t *testing.T) {
 	controller := true

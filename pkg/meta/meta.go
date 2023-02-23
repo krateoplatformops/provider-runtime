@@ -4,11 +4,9 @@ package meta
 import (
 	"time"
 
-	prv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
 	"github.com/krateoplatformops/provider-runtime/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -49,38 +47,6 @@ const (
 	// will be queued for the resource.
 	AnnotationKeyReconciliationPaused = "krateo.io/paused"
 )
-
-// TypedReferenceTo returns a typed object reference to the supplied object,
-// presumed to be of the supplied group, version, and kind.
-func TypedReferenceTo(o metav1.Object, of schema.GroupVersionKind) *prv1.TypedReference {
-	v, k := of.ToAPIVersionAndKind()
-	return &prv1.TypedReference{
-		APIVersion: v,
-		Kind:       k,
-		Name:       o.GetName(),
-		UID:        o.GetUID(),
-	}
-}
-
-// AsOwner converts the supplied object reference to an owner reference.
-func AsOwner(r *prv1.TypedReference) metav1.OwnerReference {
-	return metav1.OwnerReference{
-		APIVersion: r.APIVersion,
-		Kind:       r.Kind,
-		Name:       r.Name,
-		UID:        r.UID,
-	}
-}
-
-// AsController converts the supplied object reference to a controller
-// reference. You may also consider using metav1.NewControllerRef.
-func AsController(r *prv1.TypedReference) metav1.OwnerReference {
-	t := true
-	ref := AsOwner(r)
-	ref.Controller = &t
-	ref.BlockOwnerDeletion = &t
-	return ref
-}
 
 // HaveSameController returns true if both supplied objects are controlled by
 // the same object.

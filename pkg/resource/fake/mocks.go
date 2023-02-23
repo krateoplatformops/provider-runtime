@@ -53,20 +53,6 @@ func (m *ManagedResourceReferencer) SetResourceReference(r *corev1.ObjectReferen
 // GetResourceReference gets the ResourceReference.
 func (m *ManagedResourceReferencer) GetResourceReference() *corev1.ObjectReference { return m.Ref }
 
-// RequiredTypedResourceReferencer is a mock that implements the
-// RequiredTypedResourceReferencer interface.
-type RequiredTypedResourceReferencer struct{ Ref prv1.TypedReference }
-
-// SetResourceReference sets the ResourceReference.
-func (m *RequiredTypedResourceReferencer) SetResourceReference(p prv1.TypedReference) {
-	m.Ref = p
-}
-
-// GetResourceReference gets the ResourceReference.
-func (m *RequiredTypedResourceReferencer) GetResourceReference() prv1.TypedReference {
-	return m.Ref
-}
-
 // Orphanable implements the Orphanable interface.
 type Orphanable struct{ Policy prv1.DeletionPolicy }
 

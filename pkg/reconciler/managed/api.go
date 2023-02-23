@@ -3,7 +3,6 @@ package managed
 import (
 	"context"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -55,44 +54,6 @@ func (a *NameAsExternalName) Initialize(ctx context.Context, mg resource.Managed
 }
 
 */
-
-// An APISimpleReferenceResolver resolves references from one managed resource
-// to others by calling the referencing resource's ResolveReferences method, if
-// any.
-type APISimpleReferenceResolver struct {
-	client client.Client
-}
-
-// NewAPISimpleReferenceResolver returns a ReferenceResolver that resolves
-// references from one managed resource to others by calling the referencing
-// resource's ResolveReferences method, if any.
-func NewAPISimpleReferenceResolver(c client.Client) *APISimpleReferenceResolver {
-	return &APISimpleReferenceResolver{client: c}
-}
-
-// ResolveReferences of the supplied managed resource by calling its
-// ResolveReferences method, if any.
-func (a *APISimpleReferenceResolver) ResolveReferences(ctx context.Context, mg resource.Managed) error {
-	rr, ok := mg.(interface {
-		ResolveReferences(context.Context, client.Reader) error
-	})
-	if !ok {
-		// This managed resource doesn't have any references to resolve.
-		return nil
-	}
-
-	existing := mg.DeepCopyObject()
-	if err := rr.ResolveReferences(ctx, a.client); err != nil {
-		return errors.Wrap(err, errResolveReferences)
-	}
-
-	if cmp.Equal(existing, mg) {
-		// The resource didn't change during reference resolution.
-		return nil
-	}
-
-	return errors.Wrap(a.client.Update(ctx, mg), errUpdateManaged)
-}
 
 // A RetryingCriticalAnnotationUpdater is a CriticalAnnotationUpdater that
 // retries annotation updates in the face of API server errors.

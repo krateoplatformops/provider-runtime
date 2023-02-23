@@ -131,24 +131,6 @@ func (m InitializerFn) Initialize(ctx context.Context, mg resource.Managed) erro
 	return m(ctx, mg)
 }
 
-// A ReferenceResolver resolves references to other managed resources.
-type ReferenceResolver interface {
-	// ResolveReferences resolves all fields in the supplied managed resource
-	// that are references to other managed resources by updating corresponding
-	// fields, for example setting spec.network to the Network resource
-	// specified by spec.networkRef.name.
-	ResolveReferences(ctx context.Context, mg resource.Managed) error
-}
-
-// A ReferenceResolverFn is a function that satisfies the
-// ReferenceResolver interface.
-type ReferenceResolverFn func(context.Context, resource.Managed) error
-
-// ResolveReferences calls ReferenceResolverFn function
-func (m ReferenceResolverFn) ResolveReferences(ctx context.Context, mg resource.Managed) error {
-	return m(ctx, mg)
-}
-
 // An ExternalConnecter produces a new ExternalClient given the supplied
 // Managed resource.
 type ExternalConnecter interface {
@@ -389,7 +371,6 @@ type mrManaged struct {
 
 	resource.Finalizer
 	Initializer
-	ReferenceResolver
 }
 
 func defaultMRManaged(m manager.Manager) mrManaged {
@@ -397,7 +378,6 @@ func defaultMRManaged(m manager.Manager) mrManaged {
 		CriticalAnnotationUpdater: NewRetryingCriticalAnnotationUpdater(m.GetClient()),
 		Finalizer:                 resource.NewAPIFinalizer(m.GetClient(), FinalizerName),
 		Initializer:               NewNoopInitializer(m.GetClient()), // NewNameAsExternalName(m.GetClient()),
-		ReferenceResolver:         NewAPISimpleReferenceResolver(m.GetClient()),
 	}
 }
 
@@ -485,14 +465,6 @@ func WithInitializers(i ...Initializer) ReconcilerOption {
 func WithFinalizer(f resource.Finalizer) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.managed.Finalizer = f
-	}
-}
-
-// WithReferenceResolver specifies how the Reconciler should resolve any
-// inter-resource references it encounters while reconciling managed resources.
-func WithReferenceResolver(rr ReferenceResolver) ReconcilerOption {
-	return func(r *Reconciler) {
-		r.managed.ReferenceResolver = rr
 	}
 }
 
@@ -630,29 +602,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		record.Event(managed, event.Warning(reasonCannotInitialize, errors.New(errCreateIncomplete)))
 		managed.SetConditions(prv1.Creating(), prv1.ReconcileError(errors.New(errCreateIncomplete)))
 		return reconcile.Result{Requeue: false}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
-	}
-
-	// We resolve any references before observing our external resource because
-	// in some rare examples we need a spec field to make the observe call, and
-	// that spec field could be set by a reference.
-	//
-	// We do not resolve references when being deleted because it is likely that
-	// the resources we reference are also being deleted, and would thus block
-	// resolution due to being unready or non-existent. It is unlikely (but not
-	// impossible) that we need to resolve a reference in order to process a
-	// delete, and that reference is stale at delete time.
-	if !meta.WasDeleted(managed) {
-		if err := r.managed.ResolveReferences(ctx, managed); err != nil {
-			// If any of our referenced resources are not yet ready (or if we
-			// encountered an error resolving them) we want to try again. If
-			// this is the first time we encounter this situation we'll be
-			// requeued implicitly due to the status update. If not, we want
-			// requeue explicitly, which will trigger backoff.
-			log.Debug("Cannot resolve managed resource references", "error", err)
-			record.Event(managed, event.Warning(reasonCannotResolveRefs, err))
-			managed.SetConditions(prv1.ReconcileError(err))
-			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
-		}
 	}
 
 	external, err := r.external.Connect(externalCtx, managed)
