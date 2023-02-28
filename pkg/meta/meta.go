@@ -40,6 +40,10 @@ const (
 	// will be queued for the resource.
 	AnnotationKeyReconciliationPaused = "krateo.io/paused"
 
+	// AnnotationKeyConnectorVerbose is the key in the annotations map
+	// of a resource that indicates that the external client has verbose info enabled.
+	AnnotationKeyConnectorVerbose = "krateo.io/connector-verbose"
+
 	// AnnotationKeyManagementPolicy is the key in the annotations map
 	// of a resource to instruct the provider to manage resources in a fine-grained way.
 	// default: The provider can fully manage the resource.
@@ -267,6 +271,12 @@ func ExternalCreateSucceededDuring(o metav1.Object, d time.Duration) bool {
 // annotation set to `true`.
 func IsPaused(o metav1.Object) bool {
 	return o.GetAnnotations()[AnnotationKeyReconciliationPaused] == "true"
+}
+
+// IsVerbose returns true if the object has the AnnotationKeyConnectorVerbose
+// annotation set to `true`.
+func IsVerbose(o metav1.Object) bool {
+	return o.GetAnnotations()[AnnotationKeyConnectorVerbose] == "true"
 }
 
 // IsActionAllowed determines if action is allowed to be performed on Object
