@@ -1,11 +1,5 @@
 package helpers
 
-// String converts the supplied string pointer to a string, returning the
-// empty string if the pointer is nil.
-func String(v *string) string {
-	return StringOrDefault(v, "")
-}
-
 // StringOrDefault converts the supplied string pointer to a string, returning a
 // default string if the pointer is nil.
 func StringOrDefault(v *string, def string) string {
@@ -13,6 +7,12 @@ func StringOrDefault(v *string, def string) string {
 		return def
 	}
 	return *v
+}
+
+// String converts the supplied string pointer to a string, returning the
+// empty string if the pointer is nil.
+func String(v *string) string {
+	return StringOrDefault(v, "")
 }
 
 // StringPtr converts the supplied string to a pointer to that string.

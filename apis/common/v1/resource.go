@@ -36,6 +36,14 @@ type SecretKeySelector struct {
 	Key string `json:"key"`
 }
 
+// A ConfigMapKeySelector is a reference to a configmap key in an arbitrary namespace.
+type ConfigMapKeySelector struct {
+	Reference `json:",inline"`
+
+	// The key to select.
+	Key string `json:"key"`
+}
+
 // ManagedStatus represents the observed state of a managed resource.
 type ManagedStatus struct {
 	ConditionedStatus `json:",inline"`

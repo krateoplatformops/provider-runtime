@@ -1,20 +1,4 @@
-/*
-Copyright 2019 The Crossplane Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package managed
+package reconciler
 
 import (
 	"context"
@@ -368,16 +352,13 @@ type Reconciler struct {
 
 type mrManaged struct {
 	CriticalAnnotationUpdater
-
 	resource.Finalizer
-	Initializer
 }
 
 func defaultMRManaged(m manager.Manager) mrManaged {
 	return mrManaged{
 		CriticalAnnotationUpdater: NewRetryingCriticalAnnotationUpdater(m.GetClient()),
 		Finalizer:                 resource.NewAPIFinalizer(m.GetClient(), FinalizerName),
-		Initializer:               NewNoopInitializer(m.GetClient()), // NewNameAsExternalName(m.GetClient()),
 	}
 }
 
@@ -449,14 +430,6 @@ func WithExternalConnectDisconnecter(c ExternalConnectDisconnecter) ReconcilerOp
 func WithCriticalAnnotationUpdater(u CriticalAnnotationUpdater) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.managed.CriticalAnnotationUpdater = u
-	}
-}
-
-// WithInitializers specifies how the Reconciler should initialize a
-// managed resource before calling any of the ExternalClient functions.
-func WithInitializers(i ...Initializer) ReconcilerOption {
-	return func(r *Reconciler) {
-		r.managed.Initializer = InitializerChain(i)
 	}
 }
 
@@ -581,16 +554,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// longer exist and thus there is no point trying to update its status.
 		log.Debug("Successfully deleted managed resource")
 		return reconcile.Result{Requeue: false}, nil
-	}
-
-	if err := r.managed.Initialize(ctx, managed); err != nil {
-		// If this is the first time we encounter this issue we'll be requeued
-		// implicitly when we update our status with the new error condition. If
-		// not, we requeue explicitly, which will trigger backoff.
-		log.Debug("Cannot initialize managed resource", "error", err)
-		record.Event(managed, event.Warning(reasonCannotInitialize, err))
-		managed.SetConditions(prv1.ReconcileError(err))
-		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 
 	// If we started but never completed creation of an external resource we

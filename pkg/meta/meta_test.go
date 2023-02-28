@@ -9,8 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/krateoplatformops/provider-runtime/pkg/errors"
 )
 
 const (
@@ -22,415 +20,6 @@ const (
 	name         = "cool"
 	uid          = types.UID("definitely-a-uuid")
 )
-
-func TestHaveSameController(t *testing.T) {
-	controller := true
-
-	controllerA := metav1.OwnerReference{
-		UID:        uid,
-		Controller: &controller,
-	}
-
-	controllerB := metav1.OwnerReference{
-		UID:        types.UID("a-different-uuid"),
-		Controller: &controller,
-	}
-
-	cases := map[string]struct {
-		a    metav1.Object
-		b    metav1.Object
-		want bool
-	}{
-		"SameController": {
-			a: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					OwnerReferences: []metav1.OwnerReference{controllerA},
-				},
-			},
-			b: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					OwnerReferences: []metav1.OwnerReference{controllerA},
-				},
-			},
-			want: true,
-		},
-		"AHasNoController": {
-			a: &corev1.Pod{},
-			b: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					OwnerReferences: []metav1.OwnerReference{controllerB},
-				},
-			},
-			want: false,
-		},
-		"BHasNoController": {
-			a: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					OwnerReferences: []metav1.OwnerReference{controllerA},
-				},
-			},
-			b:    &corev1.Pod{},
-			want: false,
-		},
-		"ControllersDiffer": {
-			a: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					OwnerReferences: []metav1.OwnerReference{controllerA},
-				},
-			},
-			b: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					OwnerReferences: []metav1.OwnerReference{controllerB},
-				},
-			},
-			want: false,
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			got := HaveSameController(tc.a, tc.b)
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("HaveSameController(...): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestNamespacedNameOf(t *testing.T) {
-	cases := map[string]struct {
-		r    *corev1.ObjectReference
-		want types.NamespacedName
-	}{
-		"Success": {
-			r:    &corev1.ObjectReference{Namespace: namespace, Name: name},
-			want: types.NamespacedName{Namespace: namespace, Name: name},
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			got := NamespacedNameOf(tc.r)
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("NamespacedNameOf(...): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestAddOwnerReference(t *testing.T) {
-	owner := metav1.OwnerReference{UID: uid}
-	other := metav1.OwnerReference{UID: "a-different-uuid"}
-	ctrlr := metav1.OwnerReference{UID: uid, Controller: func() *bool { c := true; return &c }()}
-
-	type args struct {
-		o metav1.Object
-		r metav1.OwnerReference
-	}
-
-	cases := map[string]struct {
-		args args
-		want []metav1.OwnerReference
-	}{
-		"NoExistingOwners": {
-			args: args{
-				o: &corev1.Pod{},
-				r: owner,
-			},
-			want: []metav1.OwnerReference{owner},
-		},
-		"UpdateExistingOwner": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						OwnerReferences: []metav1.OwnerReference{ctrlr},
-					},
-				},
-				r: owner,
-			},
-			want: []metav1.OwnerReference{owner},
-		},
-		"OwnedByAnotherObject": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						OwnerReferences: []metav1.OwnerReference{other},
-					},
-				},
-				r: owner,
-			},
-			want: []metav1.OwnerReference{other, owner},
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			AddOwnerReference(tc.args.o, tc.args.r)
-
-			got := tc.args.o.GetOwnerReferences()
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("tc.args.o.GetOwnerReferences(...): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestAddControllerReference(t *testing.T) {
-	owner := metav1.OwnerReference{UID: uid}
-	other := metav1.OwnerReference{UID: "a-different-uuid"}
-	ctrlr := metav1.OwnerReference{UID: uid, Controller: func() *bool { c := true; return &c }()}
-	otrlr := metav1.OwnerReference{
-		Kind:       "lame",
-		Name:       "othercontroller",
-		UID:        "a-different-uuid",
-		Controller: func() *bool { c := true; return &c }(),
-	}
-
-	type args struct {
-		o metav1.Object
-		r metav1.OwnerReference
-	}
-
-	type want struct {
-		owners []metav1.OwnerReference
-		err    error
-	}
-
-	cases := map[string]struct {
-		args args
-		want want
-	}{
-		"NoExistingOwners": {
-			args: args{
-				o: &corev1.Pod{},
-				r: owner,
-			},
-			want: want{
-				owners: []metav1.OwnerReference{owner},
-			},
-		},
-		"UpdateExistingOwner": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						OwnerReferences: []metav1.OwnerReference{ctrlr},
-					},
-				},
-				r: owner,
-			},
-			want: want{
-				owners: []metav1.OwnerReference{owner},
-			},
-		},
-		"OwnedByAnotherObject": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						OwnerReferences: []metav1.OwnerReference{other},
-					},
-				},
-				r: owner,
-			},
-			want: want{
-				owners: []metav1.OwnerReference{other, owner},
-			},
-		},
-		"ControlledByAnotherObject": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:            name,
-						OwnerReferences: []metav1.OwnerReference{otrlr},
-					},
-				},
-				r: owner,
-			},
-			want: want{
-				owners: []metav1.OwnerReference{otrlr},
-				err:    errors.Errorf("%s is already controlled by %s %s (UID %s)", name, otrlr.Kind, otrlr.Name, otrlr.UID),
-			},
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			err := AddControllerReference(tc.args.o, tc.args.r)
-			if diff := cmp.Diff(tc.want.err, err, EquateErrors()); diff != "" {
-				t.Errorf("AddControllerReference(...): -want error, +got error:\n%s", diff)
-			}
-
-			got := tc.args.o.GetOwnerReferences()
-			if diff := cmp.Diff(tc.want.owners, got); diff != "" {
-				t.Errorf("tc.args.o.GetOwnerReferences(...): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestAddFinalizer(t *testing.T) {
-	finalizer := "fin"
-	funalizer := "fun"
-
-	type args struct {
-		o         metav1.Object
-		finalizer string
-	}
-
-	cases := map[string]struct {
-		args args
-		want []string
-	}{
-		"NoExistingFinalizers": {
-			args: args{
-				o:         &corev1.Pod{},
-				finalizer: finalizer,
-			},
-			want: []string{finalizer},
-		},
-		"FinalizerAlreadyExists": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Finalizers: []string{finalizer},
-					},
-				},
-				finalizer: finalizer,
-			},
-			want: []string{finalizer},
-		},
-		"AnotherFinalizerExists": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Finalizers: []string{funalizer},
-					},
-				},
-				finalizer: finalizer,
-			},
-			want: []string{funalizer, finalizer},
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			AddFinalizer(tc.args.o, tc.args.finalizer)
-
-			got := tc.args.o.GetFinalizers()
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("tc.args.o.GetFinalizers(...): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestRemoveFinalizer(t *testing.T) {
-	finalizer := "fin"
-	funalizer := "fun"
-
-	type args struct {
-		o         metav1.Object
-		finalizer string
-	}
-
-	cases := map[string]struct {
-		args args
-		want []string
-	}{
-		"NoExistingFinalizers": {
-			args: args{
-				o:         &corev1.Pod{},
-				finalizer: finalizer,
-			},
-			want: nil,
-		},
-		"FinalizerExists": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Finalizers: []string{finalizer},
-					},
-				},
-				finalizer: finalizer,
-			},
-			want: []string{},
-		},
-		"AnotherFinalizerExists": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Finalizers: []string{finalizer, funalizer},
-					},
-				},
-				finalizer: finalizer,
-			},
-			want: []string{funalizer},
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			RemoveFinalizer(tc.args.o, tc.args.finalizer)
-
-			got := tc.args.o.GetFinalizers()
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("tc.args.o.GetFinalizers(...): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestFinalizerExists(t *testing.T) {
-	finalizer := "fin"
-	funalizer := "fun"
-
-	type args struct {
-		o         metav1.Object
-		finalizer string
-	}
-
-	cases := map[string]struct {
-		args args
-		want bool
-	}{
-		"NoExistingFinalizers": {
-			args: args{
-				o:         &corev1.Pod{},
-				finalizer: finalizer,
-			},
-			want: false,
-		},
-		"FinalizerExists": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Finalizers: []string{finalizer},
-					},
-				},
-				finalizer: finalizer,
-			},
-			want: true,
-		},
-		"AnotherFinalizerExists": {
-			args: args{
-				o: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Finalizers: []string{funalizer},
-					},
-				},
-				finalizer: finalizer,
-			},
-			want: false,
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			if diff := cmp.Diff(tc.want, FinalizerExists(tc.args.o, tc.args.finalizer)); diff != "" {
-				t.Errorf("tc.args.o.GetFinalizers(...): -want, +got:\n%s", diff)
-			}
-		})
-	}
-}
 
 func TestAddLabels(t *testing.T) {
 	key, value := "key", "value"
@@ -1062,4 +651,169 @@ func EquateErrors() cmp.Option {
 
 		return a.Error() == b.Error()
 	})
+}
+
+func TestAddFinalizer(t *testing.T) {
+	finalizer := "fin"
+	funalizer := "fun"
+
+	type args struct {
+		o         metav1.Object
+		finalizer string
+	}
+
+	cases := map[string]struct {
+		args args
+		want []string
+	}{
+		"NoExistingFinalizers": {
+			args: args{
+				o:         &corev1.Pod{},
+				finalizer: finalizer,
+			},
+			want: []string{finalizer},
+		},
+		"FinalizerAlreadyExists": {
+			args: args{
+				o: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Finalizers: []string{finalizer},
+					},
+				},
+				finalizer: finalizer,
+			},
+			want: []string{finalizer},
+		},
+		"AnotherFinalizerExists": {
+			args: args{
+				o: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Finalizers: []string{funalizer},
+					},
+				},
+				finalizer: finalizer,
+			},
+			want: []string{funalizer, finalizer},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			AddFinalizer(tc.args.o, tc.args.finalizer)
+
+			got := tc.args.o.GetFinalizers()
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("tc.args.o.GetFinalizers(...): -want, +got:\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestRemoveFinalizer(t *testing.T) {
+	finalizer := "fin"
+	funalizer := "fun"
+
+	type args struct {
+		o         metav1.Object
+		finalizer string
+	}
+
+	cases := map[string]struct {
+		args args
+		want []string
+	}{
+		"NoExistingFinalizers": {
+			args: args{
+				o:         &corev1.Pod{},
+				finalizer: finalizer,
+			},
+			want: nil,
+		},
+		"FinalizerExists": {
+			args: args{
+				o: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Finalizers: []string{finalizer},
+					},
+				},
+				finalizer: finalizer,
+			},
+			want: []string{},
+		},
+		"AnotherFinalizerExists": {
+			args: args{
+				o: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Finalizers: []string{finalizer, funalizer},
+					},
+				},
+				finalizer: finalizer,
+			},
+			want: []string{funalizer},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			RemoveFinalizer(tc.args.o, tc.args.finalizer)
+
+			got := tc.args.o.GetFinalizers()
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("tc.args.o.GetFinalizers(...): -want, +got:\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestFinalizerExists(t *testing.T) {
+	finalizer := "fin"
+	funalizer := "fun"
+
+	type args struct {
+		o         metav1.Object
+		finalizer string
+	}
+
+	cases := map[string]struct {
+		args args
+		want bool
+	}{
+		"NoExistingFinalizers": {
+			args: args{
+				o:         &corev1.Pod{},
+				finalizer: finalizer,
+			},
+			want: false,
+		},
+		"FinalizerExists": {
+			args: args{
+				o: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Finalizers: []string{finalizer},
+					},
+				},
+				finalizer: finalizer,
+			},
+			want: true,
+		},
+		"AnotherFinalizerExists": {
+			args: args{
+				o: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Finalizers: []string{funalizer},
+					},
+				},
+				finalizer: finalizer,
+			},
+			want: false,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if diff := cmp.Diff(tc.want, FinalizerExists(tc.args.o, tc.args.finalizer)); diff != "" {
+				t.Errorf("tc.args.o.GetFinalizers(...): -want, +got:\n%s", diff)
+			}
+		})
+	}
 }

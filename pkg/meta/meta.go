@@ -4,10 +4,7 @@ package meta
 import (
 	"time"
 
-	"github.com/krateoplatformops/provider-runtime/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -15,10 +12,6 @@ const (
 	// resource for the name of the resource as it appears on provider's
 	// systems.
 	AnnotationKeyExternalName = "krateo.io/external-name"
-
-	// AnnotationKeyExternalOperation is the key in the annotations map of a
-	// async operation for the name of the resource to be created.
-	AnnotationKeyExternalOperation = "krateo.io/external-operation"
 
 	// AnnotationKeyExternalCreatePending is the key in the annotations map
 	// of a resource that indicates the last time creation of the external
@@ -46,53 +39,39 @@ const (
 	// the resource will be filtered and thus no further reconcile requests
 	// will be queued for the resource.
 	AnnotationKeyReconciliationPaused = "krateo.io/paused"
+
+	// AnnotationKeyManagementPolicy is the key in the annotations map
+	// of a resource to instruct the provider to manage resources in a fine-grained way.
+	// default: The provider can fully manage the resource.
+	//          This is the default policy.
+	// observe-create-update: The provider can observe, create, or update the
+	//                        resource, but can not delete it.
+	// observe-delete: The provider can observe or delete the resource, but
+	//                 can not create and update it.
+	// observe: The provider can only observe the resource.
+	//          This maps to the read-only scenario where the resource is fully controlled by third party application.
+	AnnotationKeyManagementPolicy = "krateo.io/management-policy"
 )
 
-// HaveSameController returns true if both supplied objects are controlled by
-// the same object.
-func HaveSameController(a, b metav1.Object) bool {
-	ac := metav1.GetControllerOf(a)
-	bc := metav1.GetControllerOf(b)
+const (
+	// ManagementPolicyDefault means the provider can fully manage the resource.
+	ManagementPolicyDefault = "default"
+	// ManagementPolicyObserveCreateUpdate means the provider can observe, create,
+	// or update the resource, but can not delete it.
+	ManagementPolicyObserveCreateUpdate = "observe-create-update"
+	// ManagementPolicyObserveDelete means the provider can observe or delete
+	// the resource, but can not create and update it.
+	ManagementPolicyObserveDelete = "observe-delete"
+	// ManagementPolicyObserve means the provider can only observe the resource.
+	ManagementPolicyObserve = "observe"
 
-	// We do not consider two objects without any controller to have
-	// the same controller.
-	if ac == nil || bc == nil {
-		return false
-	}
-
-	return ac.UID == bc.UID
-}
-
-// NamespacedNameOf returns the referenced object's namespaced name.
-func NamespacedNameOf(r *corev1.ObjectReference) types.NamespacedName {
-	return types.NamespacedName{Namespace: r.Namespace, Name: r.Name}
-}
-
-// AddOwnerReference to the supplied object' metadata. Any existing owner with
-// the same UID as the supplied reference will be replaced.
-func AddOwnerReference(o metav1.Object, r metav1.OwnerReference) {
-	refs := o.GetOwnerReferences()
-	for i := range refs {
-		if refs[i].UID == r.UID {
-			refs[i] = r
-			o.SetOwnerReferences(refs)
-			return
-		}
-	}
-	o.SetOwnerReferences(append(refs, r))
-}
-
-// AddControllerReference to the supplied object's metadata. Any existing owner
-// with the same UID as the supplied reference will be replaced. Returns an
-// error if the supplied object is already controlled by a different owner.
-func AddControllerReference(o metav1.Object, r metav1.OwnerReference) error {
-	if c := metav1.GetControllerOf(o); c != nil && c.UID != r.UID {
-		return errors.Errorf("%s is already controlled by %s %s (UID %s)", o.GetName(), c.Kind, c.Name, c.UID)
-	}
-
-	AddOwnerReference(o, r)
-	return nil
-}
+	// ActionCreate means to create an Object
+	ActionCreate = "create"
+	// ActionUpdate means to update an Object
+	ActionUpdate = "update"
+	// ActionDelete means to delete an Object
+	ActionDelete = "delete"
+)
 
 // AddFinalizer to the supplied Kubernetes object's metadata.
 func AddFinalizer(o metav1.Object, finalizer string) {
@@ -288,4 +267,19 @@ func ExternalCreateSucceededDuring(o metav1.Object, d time.Duration) bool {
 // annotation set to `true`.
 func IsPaused(o metav1.Object) bool {
 	return o.GetAnnotations()[AnnotationKeyReconciliationPaused] == "true"
+}
+
+// IsActionAllowed determines if action is allowed to be performed on Object
+func IsActionAllowed(o metav1.Object, action string) bool {
+	p := o.GetAnnotations()[AnnotationKeyManagementPolicy]
+	if len(p) == 0 {
+		p = ManagementPolicyDefault
+	}
+
+	if action == ActionCreate || action == ActionUpdate {
+		return p == ManagementPolicyDefault || p == ManagementPolicyObserveCreateUpdate
+	}
+
+	// ObjectActionDelete
+	return p == ManagementPolicyDefault || p == ManagementPolicyObserveDelete
 }

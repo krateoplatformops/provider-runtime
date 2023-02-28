@@ -1,4 +1,4 @@
-package managed
+package reconciler
 
 import (
 	"context"
@@ -20,40 +20,6 @@ const (
 	errResolveReferences         = "cannot resolve references"
 	errUpdateCriticalAnnotations = "cannot update critical annotations"
 )
-
-type NoopInitializer struct{ client client.Client }
-
-// NoopInitializer returns a new NoopInitializer.
-func NewNoopInitializer(c client.Client) *NoopInitializer {
-	return &NoopInitializer{client: c}
-}
-
-// Initialize the given managed resource.
-func (a *NoopInitializer) Initialize(ctx context.Context, mg resource.Managed) error {
-	return nil
-}
-
-/*
-// NameAsExternalName writes the name of the managed resource to
-// the external name annotation field in order to be used as name of
-// the external resource in provider.
-type NameAsExternalName struct{ client client.Client }
-
-// NewNameAsExternalName returns a new NameAsExternalName.
-func NewNameAsExternalName(c client.Client) *NameAsExternalName {
-	return &NameAsExternalName{client: c}
-}
-
-// Initialize the given managed resource.
-func (a *NameAsExternalName) Initialize(ctx context.Context, mg resource.Managed) error {
-	if meta.GetExternalName(mg) != "" {
-		return nil
-	}
-	meta.SetExternalName(mg, mg.GetName())
-	return errors.Wrap(a.client.Update(ctx, mg), errUpdateManaged)
-}
-
-*/
 
 // A RetryingCriticalAnnotationUpdater is a CriticalAnnotationUpdater that
 // retries annotation updates in the face of API server errors.
