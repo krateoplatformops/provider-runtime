@@ -1,4 +1,4 @@
-package status
+package resource
 
 import rtv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
 
