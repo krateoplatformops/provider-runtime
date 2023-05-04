@@ -41,7 +41,7 @@ func (m *Conditioned) SetConditions(c ...prv1.Condition) { m.Conditions = c }
 
 // GetCondition get the Condition with the given ConditionType.
 func (m *Conditioned) GetCondition(ct prv1.ConditionType) prv1.Condition {
-	return prv1.Condition{Type: ct, Status: corev1.ConditionUnknown}
+	return prv1.Condition{Type: ct, Status: metav1.ConditionUnknown}
 }
 
 // ManagedResourceReferencer is a mock that implements ManagedResourceReferencer interface.

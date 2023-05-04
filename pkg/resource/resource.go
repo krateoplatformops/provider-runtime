@@ -77,11 +77,6 @@ func IsAPIErrorWrapped(err error) bool {
 	return IsAPIError(errors.Cause(err))
 }
 
-// IsConditionTrue returns if condition status is true
-func IsConditionTrue(c corev1.ConditionStatus) bool {
-	return c == corev1.ConditionTrue
-}
-
 func GetConfigMapValue(ctx context.Context, kube client.Client, ref *commonv1.ConfigMapKeySelector) (string, error) {
 	if ref == nil {
 		return "", errors.New("no configmap referenced")

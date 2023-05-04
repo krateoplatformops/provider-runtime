@@ -3,7 +3,6 @@ package v1
 import (
 	"sort"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -45,7 +44,7 @@ type Condition struct {
 	Type ConditionType `json:"type"`
 
 	// Status of this condition; is it currently True, False, or Unknown?
-	Status corev1.ConditionStatus `json:"status"`
+	Status metav1.ConditionStatus `json:"status"`
 
 	// LastTransitionTime is the last time this condition transitioned from one
 	// status to another.
@@ -76,12 +75,12 @@ func (c Condition) WithMessage(msg string) Condition {
 	return c
 }
 
-// NOTE(negz): Conditions are implemented as a slice rather than a map to comply
+// Conditions are implemented as a slice rather than a map to comply
 // with Kubernetes API conventions. Ideally we'd comply by using a map that
 // marshalled to a JSON array, but doing so confuses the CRD schema generator.
 // https://github.com/kubernetes/community/blob/9bf8cd/contributors/devel/sig-architecture/api-conventions.md#lists-of-named-subobjects-preferred-over-maps
 
-// NOTE(negz): Do not manipulate Conditions directly. Use the Set method.
+// Do not manipulate Conditions directly. Use the Set method.
 
 // A ConditionedStatus reflects the observed status of a resource. Only
 // one condition of each type may exist.
@@ -107,7 +106,7 @@ func (s *ConditionedStatus) GetCondition(ct ConditionType) Condition {
 		}
 	}
 
-	return Condition{Type: ct, Status: corev1.ConditionUnknown}
+	return Condition{Type: ct, Status: metav1.ConditionUnknown}
 }
 
 // SetConditions sets the supplied conditions, replacing any existing conditions
@@ -170,7 +169,7 @@ func (s *ConditionedStatus) Equal(other *ConditionedStatus) bool {
 func Creating() Condition {
 	return Condition{
 		Type:               TypeReady,
-		Status:             corev1.ConditionFalse,
+		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ReasonCreating,
 	}
@@ -181,7 +180,7 @@ func Creating() Condition {
 func Deleting() Condition {
 	return Condition{
 		Type:               TypeReady,
-		Status:             corev1.ConditionFalse,
+		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ReasonDeleting,
 	}
@@ -192,7 +191,7 @@ func Deleting() Condition {
 func Available() Condition {
 	return Condition{
 		Type:               TypeReady,
-		Status:             corev1.ConditionTrue,
+		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ReasonAvailable,
 	}
@@ -205,7 +204,7 @@ func Available() Condition {
 func Unavailable() Condition {
 	return Condition{
 		Type:               TypeReady,
-		Status:             corev1.ConditionFalse,
+		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ReasonUnavailable,
 	}
@@ -216,7 +215,7 @@ func Unavailable() Condition {
 func ReconcileSuccess() Condition {
 	return Condition{
 		Type:               TypeSynced,
-		Status:             corev1.ConditionTrue,
+		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ReasonReconcileSuccess,
 	}
@@ -229,7 +228,7 @@ func ReconcileSuccess() Condition {
 func ReconcileError(err error) Condition {
 	return Condition{
 		Type:               TypeSynced,
-		Status:             corev1.ConditionFalse,
+		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ReasonReconcileError,
 		Message:            err.Error(),
@@ -241,7 +240,7 @@ func ReconcileError(err error) Condition {
 func ReconcilePaused() Condition {
 	return Condition{
 		Type:               TypeSynced,
-		Status:             corev1.ConditionFalse,
+		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ReasonReconcilePaused,
 	}
