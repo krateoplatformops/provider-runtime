@@ -4,6 +4,12 @@ import rtv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
 
 type Conditions []rtv1.Condition
 
+func (cs Conditions) DeepCopy() Conditions {
+	out := make([]rtv1.Condition, len(cs))
+	copy(out, cs)
+	return out
+}
+
 func (cs *Conditions) UpsertCondition(cond rtv1.Condition) {
 	for idx, el := range *cs {
 		if el.Type == cond.Type {
