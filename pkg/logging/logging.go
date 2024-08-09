@@ -1,19 +1,3 @@
-/*
-Copyright 2019 The Crossplane Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 // Package logging provideslogging interface.
 //
 // The logging interface defined by this package is inspired by the following:
@@ -27,13 +11,6 @@ limitations under the License.
 //
 // * https://github.com/go-logr/logr
 // * https://github.com/go-log/log
-//
-// Crossplane prefers not to use go-logr because it desires a simpler API with
-// only two levels (per Dave's article); Info and Debug. Crossplane prefers not
-// to use go-log because it does not support structured logging. This package
-// *is* however a subset of go-logr's functionality, and is intended to wrap
-// go-logr (interfaces all the way down!), in order to maintain compatibility
-// with the https://github.com/kubernetes-sigs/controller-runtime/ log plumbing.
 package logging
 
 import (

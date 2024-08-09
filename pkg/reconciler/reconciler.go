@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -19,10 +20,6 @@ import (
 )
 
 const (
-	// FinalizerName is the string that is used as finalizer on managed resource
-	// objects.
-	FinalizerName = "finalizer.managedresource.krateo.io"
-
 	reconcileGracePeriod = 30 * time.Second
 	reconcileTimeout     = 1 * time.Minute
 
@@ -67,7 +64,7 @@ const (
 // ControllerName returns the recommended name for controllers that use this
 // package to reconcile a particular kind of managed resource.
 func ControllerName(kind string) string {
-	return "managed/" + strings.ToLower(kind)
+	return "krateo/" + strings.ToLower(kind)
 }
 
 // A CriticalAnnotationUpdater is used when it is critical that annotations must
@@ -123,10 +120,14 @@ type ExternalConnecter interface {
 	Connect(ctx context.Context, mg resource.Managed) (ExternalClient, error)
 }
 
-// An ExternalDisconnecter disconnects from a provider.
-type ExternalDisconnecter interface {
-	// Disconnect from the provider and close the ExternalClient.
-	Disconnect(ctx context.Context) error
+// An ExternalConnectorFn is a function that satisfies the ExternalConnecter
+// interface.
+type ExternalConnectorFn func(ctx context.Context, mg resource.Managed) (ExternalClient, error)
+
+// Connect to the provider specified by the supplied managed resource and
+// produce an ExternalClient.
+func (ec ExternalConnectorFn) Connect(ctx context.Context, mg resource.Managed) (ExternalClient, error) {
+	return ec(ctx, mg)
 }
 
 // A NopDisconnecter converts an ExternalConnecter into an
@@ -143,56 +144,6 @@ func (c *NopDisconnecter) Connect(ctx context.Context, mg resource.Managed) (Ext
 // Disconnect does nothing. It never returns an error.
 func (c *NopDisconnecter) Disconnect(_ context.Context) error {
 	return nil
-}
-
-// NewNopDisconnecter converts an ExternalConnecter into an
-// ExternalConnectDisconnecter with a no-op Disconnect method.
-func NewNopDisconnecter(c ExternalConnecter) ExternalConnectDisconnecter {
-	return &NopDisconnecter{c}
-}
-
-// An ExternalConnectDisconnecter produces a new ExternalClient given the supplied
-// Managed resource.
-type ExternalConnectDisconnecter interface {
-	ExternalConnecter
-	ExternalDisconnecter
-}
-
-// An ExternalConnectorFn is a function that satisfies the ExternalConnecter
-// interface.
-type ExternalConnectorFn func(ctx context.Context, mg resource.Managed) (ExternalClient, error)
-
-// Connect to the provider specified by the supplied managed resource and
-// produce an ExternalClient.
-func (ec ExternalConnectorFn) Connect(ctx context.Context, mg resource.Managed) (ExternalClient, error) {
-	return ec(ctx, mg)
-}
-
-// An ExternalDisconnectorFn is a function that satisfies the ExternalConnecter
-// interface.
-type ExternalDisconnectorFn func(ctx context.Context) error
-
-// Disconnect from provider and close the ExternalClient.
-func (ed ExternalDisconnectorFn) Disconnect(ctx context.Context) error {
-	return ed(ctx)
-}
-
-// ExternalConnectDisconnecterFns are functions that satisfy the
-// ExternalConnectDisconnecter interface.
-type ExternalConnectDisconnecterFns struct {
-	ConnectFn    func(ctx context.Context, mg resource.Managed) (ExternalClient, error)
-	DisconnectFn func(ctx context.Context) error
-}
-
-// Connect to the provider specified by the supplied managed resource and
-// produce an ExternalClient.
-func (fns ExternalConnectDisconnecterFns) Connect(ctx context.Context, mg resource.Managed) (ExternalClient, error) {
-	return fns.ConnectFn(ctx, mg)
-}
-
-// Disconnect from the provider and close the ExternalClient.
-func (fns ExternalConnectDisconnecterFns) Disconnect(ctx context.Context) error {
-	return fns.DisconnectFn(ctx)
 }
 
 // An ExternalClient manages the lifecycle of an external resource.
@@ -224,15 +175,22 @@ type ExternalClient interface {
 	// Delete the external resource upon deletion of its associated Managed
 	// resource. Called when the managed resource has been deleted.
 	Delete(ctx context.Context, mg resource.Managed) error
+
+	// Disconnect from the provider and close the ExternalClient.
+	// Called at the end of reconcile loop. An ExternalClient not requiring
+	// to explicitly disconnect to cleanup it resources, can provide a no-op
+	// implementation which just return nil.
+	Disconnect(ctx context.Context) error
 }
 
 // ExternalClientFns are a series of functions that satisfy the ExternalClient
 // interface.
 type ExternalClientFns struct {
-	ObserveFn func(ctx context.Context, mg resource.Managed) (ExternalObservation, error)
-	CreateFn  func(ctx context.Context, mg resource.Managed) error
-	UpdateFn  func(ctx context.Context, mg resource.Managed) error
-	DeleteFn  func(ctx context.Context, mg resource.Managed) error
+	ObserveFn    func(ctx context.Context, mg resource.Managed) (ExternalObservation, error)
+	CreateFn     func(ctx context.Context, mg resource.Managed) error
+	UpdateFn     func(ctx context.Context, mg resource.Managed) error
+	DeleteFn     func(ctx context.Context, mg resource.Managed) error
+	DisconnectFn func(ctx context.Context) error
 }
 
 // Observe the external resource the supplied Managed resource represents, if
@@ -257,6 +215,14 @@ func (e ExternalClientFns) Update(ctx context.Context, mg resource.Managed) erro
 // resource.
 func (e ExternalClientFns) Delete(ctx context.Context, mg resource.Managed) error {
 	return e.DeleteFn(ctx, mg)
+}
+
+// Disconnect the external client.
+func (e ExternalClientFns) Disconnect(ctx context.Context) error {
+	if e.DisconnectFn == nil {
+		return nil
+	}
+	return e.DisconnectFn(ctx)
 }
 
 // A NopConnecter does nothing.
@@ -287,6 +253,9 @@ func (c *NopClient) Update(ctx context.Context, mg resource.Managed) error {
 
 // Delete does nothing. It never returns an error.
 func (c *NopClient) Delete(ctx context.Context, mg resource.Managed) error { return nil }
+
+// Disconnect does nothing. It never returns an error.
+func (c *NopClient) Disconnect(_ context.Context) error { return nil }
 
 // An ExternalObservation is the result of an observation of an external
 // resource.
@@ -352,23 +321,21 @@ type Reconciler struct {
 
 type mrManaged struct {
 	CriticalAnnotationUpdater
-	resource.Finalizer
 }
 
 func defaultMRManaged(m manager.Manager) mrManaged {
 	return mrManaged{
 		CriticalAnnotationUpdater: NewRetryingCriticalAnnotationUpdater(m.GetClient()),
-		Finalizer:                 resource.NewAPIFinalizer(m.GetClient(), FinalizerName),
 	}
 }
 
 type mrExternal struct {
-	ExternalConnectDisconnecter
+	ExternalConnecter
 }
 
 func defaultMRExternal() mrExternal {
 	return mrExternal{
-		ExternalConnectDisconnecter: NewNopDisconnecter(&NopConnecter{}),
+		ExternalConnecter: &NopConnecter{},
 	}
 }
 
@@ -411,15 +378,7 @@ func WithCreationGracePeriod(d time.Duration) ReconcilerOption {
 // used to sync and delete external resources.
 func WithExternalConnecter(c ExternalConnecter) ReconcilerOption {
 	return func(r *Reconciler) {
-		r.external.ExternalConnectDisconnecter = NewNopDisconnecter(c)
-	}
-}
-
-// WithExternalConnectDisconnecter specifies how the Reconciler should connect and disconnect to the API
-// used to sync and delete external resources.
-func WithExternalConnectDisconnecter(c ExternalConnectDisconnecter) ReconcilerOption {
-	return func(r *Reconciler) {
-		r.external.ExternalConnectDisconnecter = c
+		r.external.ExternalConnecter = c
 	}
 }
 
@@ -430,14 +389,6 @@ func WithExternalConnectDisconnecter(c ExternalConnectDisconnecter) ReconcilerOp
 func WithCriticalAnnotationUpdater(u CriticalAnnotationUpdater) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.managed.CriticalAnnotationUpdater = u
-	}
-}
-
-// WithFinalizer specifies how the Reconciler should add and remove
-// finalizers to and from the managed resource.
-func WithFinalizer(f resource.Finalizer) ReconcilerOption {
-	return func(r *Reconciler) {
-		r.managed.Finalizer = f
 	}
 }
 
@@ -464,6 +415,7 @@ func WithRecorder(er event.Recorder) ReconcilerOption {
 // capable of managing resources in a real system.
 func NewReconciler(m manager.Manager, of resource.ManagedKind, o ...ReconcilerOption) *Reconciler {
 	nm := func() resource.Managed {
+		//nolint:forcetypeassert // If this isn't an MR it's a programming error and we want to panic.
 		return resource.MustCreateObject(schema.GroupVersionKind(of), m.GetScheme()).(resource.Managed)
 	}
 
@@ -532,26 +484,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 
-	// If managed resource has a deletion timestamp and and a deletion policy of
-	// Orphan, we do not need to observe the external resource before attempting
-	// to unpublish connection details and remove finalizer.
-	if meta.WasDeleted(managed) && managed.GetDeletionPolicy() == prv1.DeletionOrphan {
+	if meta.WasDeleted(managed) {
 		log = log.WithValues("deletion-timestamp", managed.GetDeletionTimestamp())
-
-		if err := r.managed.RemoveFinalizer(ctx, managed); err != nil {
-			// If this is the first time we encounter this issue we'll be
-			// requeued implicitly when we update our status with the new error
-			// condition. If not, we requeue explicitly, which will trigger
-			// backoff.
-			log.Debug("Cannot remove managed resource finalizer", "error", err)
-			managed.SetConditions(prv1.Deleting(), prv1.ReconcileError(err))
-			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
-		}
-
-		// We've successfully unpublished our managed resource's connection
-		// details and removed our finalizer. If we assume we were the only
-		// controller that added a finalizer to this resource then it should no
-		// longer exist and thus there is no point trying to update its status.
 		log.Debug("Successfully deleted managed resource")
 		return reconcile.Result{Requeue: false}, nil
 	}
@@ -580,7 +514,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 	defer func() {
-		if err := r.external.Disconnect(ctx); err != nil {
+		if err := external.Disconnect(ctx); err != nil {
 			log.Debug("Cannot disconnect from provider", "error", err)
 			record.Event(managed, event.Warning(reasonCannotDisconnect, err))
 		}
@@ -595,6 +529,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// error condition. If not, we requeue explicitly, which will
 		// trigger backoff.
 		log.Debug("Cannot observe external resource", "error", err)
+		if kerrors.IsConflict(err) {
+			return reconcile.Result{Requeue: true}, nil
+		}
 		record.Event(managed, event.Warning(reasonCannotObserve, err))
 		managed.SetConditions(prv1.ReconcileError(errors.Wrap(err, errReconcileObserve)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
@@ -643,31 +580,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
 
-		if err := r.managed.RemoveFinalizer(ctx, managed); err != nil {
-			// If this is the first time we encounter this issue we'll be
-			// requeued implicitly when we update our status with the new error
-			// condition. If not, we requeue explicitly, which will trigger
-			// backoff.
-			log.Debug("Cannot remove managed resource finalizer", "error", err)
-			managed.SetConditions(prv1.Deleting(), prv1.ReconcileError(err))
-			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
-		}
-
 		// We've successfully deleted our external resource (if necessary) and
 		// removed our finalizer. If we assume we were the only controller that
 		// added a finalizer to this resource then it should no longer exist and
 		// thus there is no point trying to update its status.
 		log.Debug("Successfully deleted managed resource")
 		return reconcile.Result{Requeue: false}, nil
-	}
-
-	if err := r.managed.AddFinalizer(ctx, managed); err != nil {
-		// If this is the first time we encounter this issue we'll be requeued
-		// implicitly when we update our status with the new error condition. If
-		// not, we requeue explicitly, which will trigger backoff.
-		log.Debug("Cannot add finalizer", "error", err)
-		managed.SetConditions(prv1.ReconcileError(err))
-		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 
 	if !observation.ResourceExists {
@@ -681,6 +599,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		meta.SetExternalCreatePending(managed, time.Now())
 		if err := r.client.Update(ctx, managed); err != nil {
 			log.Debug(errUpdateManaged, "error", err)
+			if kerrors.IsConflict(err) {
+				return reconcile.Result{Requeue: true}, nil
+			}
 			record.Event(managed, event.Warning(reasonCannotUpdateManaged, errors.Wrap(err, errUpdateManaged)))
 			managed.SetConditions(prv1.Creating(), prv1.ReconcileError(errors.Wrap(err, errUpdateManaged)))
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
@@ -694,6 +615,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			// issue we'll be requeued implicitly when we update our status with
 			// the new error condition. If not, we requeue explicitly, which will trigger backoff.
 			log.Debug("Cannot create external resource", "error", err)
+			if kerrors.IsConflict(err) {
+				return reconcile.Result{Requeue: true}, nil
+			}
 			record.Event(managed, event.Warning(reasonCannotCreate, err))
 
 			// We handle annotations specially here because it's
@@ -735,6 +659,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		meta.SetExternalCreateSucceeded(managed, time.Now())
 		if err := r.managed.UpdateCriticalAnnotations(ctx, managed); err != nil {
 			log.Debug(errUpdateManagedAnnotations, "error", err)
+			if kerrors.IsConflict(err) {
+				return reconcile.Result{Requeue: true}, nil
+			}
 			record.Event(managed, event.Warning(reasonCannotUpdateManaged, errors.Wrap(err, errUpdateManagedAnnotations)))
 			managed.SetConditions(prv1.Creating(), prv1.ReconcileError(errors.Wrap(err, errUpdateManagedAnnotations)))
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
@@ -795,11 +722,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 
-	// We've successfully updated our external resource. Per the below issue
-	// nothing will notify us if and when the external resource we manage
-	// changes, so we requeue a speculative reconcile after the specified poll
-	// interval in order to observe it and react accordingly.
-	// https://github.com/crossplane/crossplane/issues/289
+	// We've successfully updated our external resource.
 	log.Debug("Successfully requested update of external resource", "requeue-after", time.Now().Add(r.pollInterval))
 	record.Event(managed, event.Normal(reasonUpdated, "Successfully requested update of external resource"))
 	managed.SetConditions(prv1.ReconcileSuccess())
