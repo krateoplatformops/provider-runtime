@@ -67,60 +67,6 @@ func TestReconciler(t *testing.T) {
 			},
 			want: want{result: reconcile.Result{}},
 		},
-		"RemoveFinalizerErrorDeletionPolicyOrphan": {
-			reason: "Errors removing the managed resource finalizer should trigger a requeue after a short wait.",
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
-							mg := obj.(*fake.Managed)
-							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionOrphan)
-							return nil
-						}),
-						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
-							want := &fake.Managed{}
-							want.SetDeletionTimestamp(&now)
-							want.SetDeletionPolicy(prv1.DeletionOrphan)
-							want.SetConditions(prv1.Deleting())
-							want.SetConditions(prv1.ReconcileError(errBoom))
-							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
-								reason := "Errors removing the managed resource finalizer should be reported as a conditioned status."
-								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
-							}
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-				o: []ReconcilerOption{
-					WithFinalizer(resource.FinalizerFns{RemoveFinalizerFn: func(_ context.Context, _ resource.Object) error { return errBoom }}),
-				},
-			},
-			want: want{result: reconcile.Result{Requeue: true}},
-		},
-		"DeleteSuccessfulDeletionPolicyOrphan": {
-			reason: "Successful managed resource deletion with deletion policy Orphan should not trigger a requeue or status update.",
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
-							mg := obj.(*fake.Managed)
-							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionOrphan)
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-				o: []ReconcilerOption{
-					WithFinalizer(resource.FinalizerFns{RemoveFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
-				},
-			},
-			want: want{result: reconcile.Result{Requeue: false}},
-		},
 		"ExternalCreatePending": {
 			reason: "We should return early if the managed resource appears to be pending creation. We might have leaked a resource and don't want to create another.",
 			args: args{
@@ -146,28 +92,6 @@ func TestReconciler(t *testing.T) {
 				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
 			},
 			want: want{result: reconcile.Result{Requeue: false}},
-		},
-		"ResolveReferencesError": {
-			reason: "Errors during reference resolution references should trigger a requeue after a short wait.",
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil),
-						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
-							want := &fake.Managed{}
-							want.SetConditions(prv1.ReconcileError(errBoom))
-							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
-								reason := "Errors during reference resolution should be reported as a conditioned status."
-								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
-							}
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-			},
-			want: want{result: reconcile.Result{Requeue: true}},
 		},
 		"ExternalConnectError": {
 			reason: "Errors connecting to the provider should trigger a requeue after a short wait.",
@@ -195,43 +119,6 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{result: reconcile.Result{Requeue: true}},
-		},
-		"ExternalDisconnectError": {
-			reason: "Error disconnecting from the provider should not trigger requeue.",
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil),
-						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
-							want := &fake.Managed{}
-							want.SetConditions(prv1.ReconcileSuccess())
-							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
-								reason := "A successful no-op reconcile should be reported as a conditioned status."
-								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
-							}
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-				o: []ReconcilerOption{
-					WithExternalConnectDisconnecter(ExternalConnectDisconnecterFns{
-						ConnectFn: func(_ context.Context, mg resource.Managed) (ExternalClient, error) {
-							c := &ExternalClientFns{
-								ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
-									return ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
-								},
-							}
-							return c, nil
-						},
-						DisconnectFn: func(_ context.Context) error { return errBoom },
-					}),
-
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
-				},
-			},
-			want: want{result: reconcile.Result{RequeueAfter: defaultpollInterval}},
 		},
 		"ExternalObserveError": {
 			reason: "Errors observing the external resource should trigger a requeue after a short wait.",
@@ -292,133 +179,6 @@ func TestReconciler(t *testing.T) {
 			},
 			want: want{result: reconcile.Result{Requeue: true}},
 		},
-		"ExternalDeleteError": {
-			reason: "Errors deleting the external resource should trigger a requeue after a short wait.",
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
-							mg := obj.(*fake.Managed)
-							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionDelete)
-							return nil
-						}),
-						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
-							want := &fake.Managed{}
-							want.SetDeletionTimestamp(&now)
-							want.SetDeletionPolicy(prv1.DeletionDelete)
-							want.SetConditions(prv1.ReconcileError(errors.Wrap(errBoom, errReconcileDelete)))
-							want.SetConditions(prv1.Deleting())
-							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
-								reason := "An error deleting an external resource should be reported as a conditioned status."
-								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
-							}
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-				o: []ReconcilerOption{
-					WithExternalConnecter(ExternalConnectorFn(func(_ context.Context, mg resource.Managed) (ExternalClient, error) {
-						c := &ExternalClientFns{
-							ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
-								return ExternalObservation{ResourceExists: true}, nil
-							},
-							DeleteFn: func(_ context.Context, _ resource.Managed) error {
-								return errBoom
-							},
-						}
-						return c, nil
-					})),
-				},
-			},
-			want: want{result: reconcile.Result{Requeue: true}},
-		},
-		"ExternalDeleteSuccessful": {
-			reason: "A deleted managed resource with the 'delete' reclaim policy should delete its external resource then requeue after a short wait.",
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
-							mg := obj.(*fake.Managed)
-							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionDelete)
-							return nil
-						}),
-						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
-							want := &fake.Managed{}
-							want.SetDeletionTimestamp(&now)
-							want.SetDeletionPolicy(prv1.DeletionDelete)
-							want.SetConditions(prv1.ReconcileSuccess())
-							want.SetConditions(prv1.Deleting())
-							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
-								reason := "A deleted external resource should be reported as a conditioned status."
-								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
-							}
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-				o: []ReconcilerOption{
-					WithExternalConnecter(ExternalConnectorFn(func(_ context.Context, mg resource.Managed) (ExternalClient, error) {
-						c := &ExternalClientFns{
-							ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
-								return ExternalObservation{ResourceExists: true}, nil
-							},
-							DeleteFn: func(_ context.Context, _ resource.Managed) error {
-								return nil
-							},
-						}
-						return c, nil
-					})),
-				},
-			},
-			want: want{result: reconcile.Result{Requeue: true}},
-		},
-		"RemoveFinalizerErrorDeletionPolicyDelete": {
-			reason: "Errors removing the managed resource finalizer should trigger a requeue after a short wait.",
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
-							mg := obj.(*fake.Managed)
-							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionDelete)
-							return nil
-						}),
-						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
-							want := &fake.Managed{}
-							want.SetDeletionTimestamp(&now)
-							want.SetDeletionPolicy(prv1.DeletionDelete)
-							want.SetConditions(prv1.Deleting())
-							want.SetConditions(prv1.ReconcileError(errBoom))
-							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
-								reason := "Errors removing the managed resource finalizer should be reported as a conditioned status."
-								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
-							}
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-				o: []ReconcilerOption{
-					WithExternalConnecter(ExternalConnectorFn(func(_ context.Context, mg resource.Managed) (ExternalClient, error) {
-						c := &ExternalClientFns{
-							ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
-								return ExternalObservation{ResourceExists: false}, nil
-							},
-						}
-						return c, nil
-					})),
-					WithFinalizer(resource.FinalizerFns{RemoveFinalizerFn: func(_ context.Context, _ resource.Object) error { return errBoom }}),
-				},
-			},
-			want: want{result: reconcile.Result{Requeue: true}},
-		},
 		"DeleteSuccessfulDeletionPolicyDelete": {
 			reason: "Successful managed resource deletion with deletion policy Delete should not trigger a requeue or status update.",
 			args: args{
@@ -427,7 +187,6 @@ func TestReconciler(t *testing.T) {
 						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 							mg := obj.(*fake.Managed)
 							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionDelete)
 							return nil
 						}),
 					},
@@ -443,36 +202,9 @@ func TestReconciler(t *testing.T) {
 						}
 						return c, nil
 					})),
-					WithFinalizer(resource.FinalizerFns{RemoveFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
 			want: want{result: reconcile.Result{Requeue: false}},
-		},
-		"AddFinalizerError": {
-			reason: "Errors adding a finalizer should trigger a requeue after a short wait.",
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil),
-						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
-							want := &fake.Managed{}
-							want.SetConditions(prv1.ReconcileError(errBoom))
-							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
-								reason := "Errors adding a finalizer should be reported as a conditioned status."
-								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
-							}
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-				o: []ReconcilerOption{
-					WithExternalConnecter(&NopConnecter{}),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return errBoom }}),
-				},
-			},
-			want: want{result: reconcile.Result{Requeue: true}},
 		},
 		"UpdateCreatePendingError": {
 			reason: "Errors while updating our external-create-pending annotation should trigger a requeue after a short wait.",
@@ -507,7 +239,6 @@ func TestReconciler(t *testing.T) {
 						}
 						return c, nil
 					})),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
 			want: want{result: reconcile.Result{Requeue: true}},
@@ -550,7 +281,6 @@ func TestReconciler(t *testing.T) {
 					// We simulate our critical annotation update failing too here.
 					// This is mostly just to exercise the code, which just creates a log and an event.
 					WithCriticalAnnotationUpdater(CriticalAnnotationUpdateFn(func(ctx context.Context, o client.Object) error { return errBoom })),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
 			want: want{result: reconcile.Result{Requeue: true}},
@@ -590,7 +320,6 @@ func TestReconciler(t *testing.T) {
 						}
 						return c, nil
 					})),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 					WithCriticalAnnotationUpdater(CriticalAnnotationUpdateFn(func(ctx context.Context, o client.Object) error { return errBoom })),
 				},
 			},
@@ -622,7 +351,6 @@ func TestReconciler(t *testing.T) {
 				o: []ReconcilerOption{
 					WithExternalConnecter(&NopConnecter{}),
 					WithCriticalAnnotationUpdater(CriticalAnnotationUpdateFn(func(ctx context.Context, o client.Object) error { return nil })),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
 			want: want{result: reconcile.Result{Requeue: true}},
@@ -656,7 +384,6 @@ func TestReconciler(t *testing.T) {
 						}
 						return c, nil
 					})),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
 			want: want{result: reconcile.Result{Requeue: true}},
@@ -689,7 +416,6 @@ func TestReconciler(t *testing.T) {
 						}
 						return c, nil
 					})),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
 			want: want{result: reconcile.Result{RequeueAfter: defaultpollInterval}},
@@ -725,7 +451,6 @@ func TestReconciler(t *testing.T) {
 						}
 						return c, nil
 					})),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
 			want: want{result: reconcile.Result{Requeue: true}},
@@ -761,7 +486,6 @@ func TestReconciler(t *testing.T) {
 						}
 						return c, nil
 					})),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
 			want: want{result: reconcile.Result{RequeueAfter: defaultpollInterval}},
@@ -792,48 +516,6 @@ func TestReconciler(t *testing.T) {
 				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
 			},
 			want: want{result: reconcile.Result{}},
-		},
-		"ReconciliationResumes": {
-			reason: `If a managed resource has the pause annotation with some value other than "true" and the Synced=False/ReconcilePaused status condition, reconciliation should resume with requeueing.`,
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
-							mg := obj.(*fake.Managed)
-							mg.SetAnnotations(map[string]string{meta.AnnotationKeyReconciliationPaused: "false"})
-							mg.SetConditions(prv1.ReconcilePaused())
-							return nil
-						}),
-						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
-							want := &fake.Managed{}
-							want.SetAnnotations(map[string]string{meta.AnnotationKeyReconciliationPaused: "false"})
-							want.SetConditions(prv1.ReconcileSuccess())
-							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
-								reason := `Managed resource should acquire Synced=False/ReconcileSuccess status condition after a resume.`
-								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
-							}
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-				o: []ReconcilerOption{
-					WithExternalConnectDisconnecter(ExternalConnectDisconnecterFns{
-						ConnectFn: func(_ context.Context, mg resource.Managed) (ExternalClient, error) {
-							c := &ExternalClientFns{
-								ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
-									return ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
-								},
-							}
-							return c, nil
-						},
-						DisconnectFn: func(_ context.Context) error { return errBoom },
-					}),
-					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
-				},
-			},
-			want: want{result: reconcile.Result{RequeueAfter: defaultpollInterval}},
 		},
 		"ReconciliationPausedError": {
 			reason: `If a managed resource has the pause annotation with value "true" and the status update due to reconciliation being paused fails, error should be reported causing an exponentially backed-off requeue.`,

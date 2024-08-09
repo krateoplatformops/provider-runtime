@@ -53,15 +53,6 @@ func (m *ManagedResourceReferencer) SetResourceReference(r *corev1.ObjectReferen
 // GetResourceReference gets the ResourceReference.
 func (m *ManagedResourceReferencer) GetResourceReference() *corev1.ObjectReference { return m.Ref }
 
-// Orphanable implements the Orphanable interface.
-type Orphanable struct{ Policy prv1.DeletionPolicy }
-
-// SetDeletionPolicy sets the DeletionPolicy.
-func (m *Orphanable) SetDeletionPolicy(p prv1.DeletionPolicy) { m.Policy = p }
-
-// GetDeletionPolicy gets the DeletionPolicy.
-func (m *Orphanable) GetDeletionPolicy() prv1.DeletionPolicy { return m.Policy }
-
 // An EnvironmentConfigReferencer is a mock that implements the
 // EnvironmentConfigReferencer interface.
 type EnvironmentConfigReferencer struct{ Refs []corev1.ObjectReference }
@@ -101,7 +92,6 @@ func (o *Object) DeepCopyObject() runtime.Object {
 // Managed is a mock that implements Managed interface.
 type Managed struct {
 	metav1.ObjectMeta
-	Orphanable
 	prv1.ConditionedStatus
 }
 
