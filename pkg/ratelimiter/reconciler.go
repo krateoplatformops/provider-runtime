@@ -21,10 +21,10 @@ type Reconciler struct {
 	limitedL sync.RWMutex
 }
 
-// NewReconciler wraps the supplied Reconciler, ensuring requests are passed to
+// New wraps the supplied Reconciler, ensuring requests are passed to
 // it no more frequently than the supplied RateLimiter allows. Multiple uniquely
 // named Reconcilers can share the same RateLimiter.
-func NewReconciler(name string, r reconcile.Reconciler, l ratelimiter.RateLimiter) *Reconciler {
+func New(name string, r reconcile.Reconciler, l ratelimiter.RateLimiter) *Reconciler {
 	return &Reconciler{name: name, inner: r, limit: l, limited: make(map[string]struct{})}
 }
 
