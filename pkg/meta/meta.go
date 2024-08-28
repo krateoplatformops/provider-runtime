@@ -55,6 +55,11 @@ const (
 	// observe: The provider can only observe the resource.
 	//          This maps to the read-only scenario where the resource is fully controlled by third party application.
 	AnnotationKeyManagementPolicy = "krateo.io/management-policy"
+
+	// AnnotationKeyDeletionPolicy is the key in the annotations map
+	// of a resource that determines what should happen to the underlying external
+	// resource when a managed resource is deleted
+	AnnotationKeyDeletionPolicy = "krateo.io/deletion-policy"
 )
 
 const (
@@ -68,6 +73,14 @@ const (
 	ManagementPolicyObserveDelete = "observe-delete"
 	// ManagementPolicyObserve means the provider can only observe the resource.
 	ManagementPolicyObserve = "observe"
+
+	// DeletionPolicyOrphan means the external resource will orphaned when its managed
+	// resource is deleted.
+	DeletionPolicyOrphan = "orphan"
+
+	// DeletionPolicyDelete means both the  external resource will be deleted when its
+	// managed resource is deleted.
+	DeletionPolicyDelete = "delete"
 
 	// ActionCreate means to create an Object
 	ActionCreate = "create"
@@ -292,4 +305,58 @@ func IsActionAllowed(o metav1.Object, action string) bool {
 
 	// ObjectActionDelete
 	return p == ManagementPolicyDefault || p == ManagementPolicyObserveDelete
+}
+
+// ShouldDelete determines if the external resource will orphaned
+func ShouldDelete(o metav1.Object) bool {
+	mp := o.GetAnnotations()[AnnotationKeyManagementPolicy]
+	if len(mp) == 0 {
+		mp = ManagementPolicyDefault
+	}
+
+	dp := o.GetAnnotations()[AnnotationKeyDeletionPolicy]
+	if len(dp) == 0 {
+		dp = DeletionPolicyDelete
+	}
+
+	if dp == DeletionPolicyDelete && mp == ManagementPolicyDefault {
+		return true
+	}
+
+	if mp == ManagementPolicyObserveDelete {
+		return true
+	}
+
+	return false
+}
+
+// ShouldOnlyObserve returns true if the Observe action is allowed and all
+// other actions are not allowed.
+func ShouldOnlyObserve(o metav1.Object) bool {
+	mp := o.GetAnnotations()[AnnotationKeyManagementPolicy]
+	if len(mp) == 0 {
+		mp = ManagementPolicyDefault
+	}
+
+	return mp == ManagementPolicyObserve
+}
+
+// ShouldCreate returns true if the Create action is allowed.
+func ShouldCreate(o metav1.Object) bool {
+	mp := o.GetAnnotations()[AnnotationKeyManagementPolicy]
+	if len(mp) == 0 {
+		mp = ManagementPolicyDefault
+	}
+
+	return mp == ManagementPolicyDefault || mp == ManagementPolicyObserveCreateUpdate
+}
+
+// ShouldUpdate returns true if the Update action is allowed.
+func ShouldUpdate(o metav1.Object) bool {
+	mp := o.GetAnnotations()[AnnotationKeyManagementPolicy]
+	if len(mp) == 0 {
+		mp = ManagementPolicyDefault
+	}
+
+	return mp == ManagementPolicyDefault || mp == ManagementPolicyObserveCreateUpdate
 }

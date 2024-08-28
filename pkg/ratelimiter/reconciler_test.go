@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/ratelimiter"
+	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-var _ ratelimiter.RateLimiter = &predictableRateLimiter{}
+var _ workqueue.TypedRateLimiter[any] = &predictableRateLimiter{}
 
 type predictableRateLimiter struct{ d time.Duration }
 
@@ -38,7 +38,7 @@ func TestReconcile(t *testing.T) {
 	}{
 		"NotRateLimited": {
 			reason: "Requests that are not rate limited should be passed to the inner Reconciler.",
-			r: NewReconciler("test",
+			r: New("test",
 				reconcile.Func(func(c context.Context, r reconcile.Request) (reconcile.Result, error) {
 					return reconcile.Result{Requeue: true}, nil
 				}),
@@ -50,7 +50,7 @@ func TestReconcile(t *testing.T) {
 		},
 		"RateLimited": {
 			reason: "Requests that are rate limited should be requeued after the duration specified by the RateLimiter.",
-			r:      NewReconciler("test", nil, &predictableRateLimiter{d: 8 * time.Second}),
+			r:      New("test", nil, &predictableRateLimiter{d: 8 * time.Second}),
 			want: want{
 				res: reconcile.Result{RequeueAfter: 8 * time.Second},
 				err: nil,
@@ -64,7 +64,7 @@ func TestReconcile(t *testing.T) {
 				})
 
 				// Rate limit the request once.
-				r := NewReconciler("test", inner, &predictableRateLimiter{d: 8 * time.Second})
+				r := New("test", inner, &predictableRateLimiter{d: 8 * time.Second})
 				r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "limited"}})
 				return r
 

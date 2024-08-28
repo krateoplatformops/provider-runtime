@@ -5,6 +5,7 @@ import (
 
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/krateoplatformops/provider-runtime/pkg/logging"
 	"github.com/krateoplatformops/provider-runtime/pkg/ratelimiter"
@@ -40,8 +41,8 @@ type Options struct {
 
 // ForControllerRuntime extracts options for controller-runtime.
 func (o Options) ForControllerRuntime() controller.Options {
-	return controller.Options{
+	return controller.TypedOptions[reconcile.Request]{
 		MaxConcurrentReconciles: o.MaxConcurrentReconciles,
-		RateLimiter:             ratelimiter.NewController(),
+		RateLimiter:             workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Second, 60*time.Second),
 	}
 }
