@@ -637,6 +637,61 @@ func TestIsPaused(t *testing.T) {
 	}
 }
 
+func TestIsAllowed(t *testing.T) {
+	cases := map[string]struct {
+		action string
+		o      metav1.Object
+		want   bool
+	}{
+		"CreateWithManagementPolicyDefault": {
+			action: ActionCreate,
+			o: func() metav1.Object {
+				p := &corev1.Pod{}
+				p.SetAnnotations(map[string]string{
+					AnnotationKeyManagementPolicy: ManagementPolicyDefault,
+				})
+				return p
+			}(),
+			want: true,
+		},
+		"CreateWithNoManagementPolicy": {
+			action: ActionCreate,
+			o:      &corev1.Pod{},
+			want:   true,
+		},
+		"CreateWithManagementPolicyObserve": {
+			action: ActionCreate,
+			o: func() metav1.Object {
+				p := &corev1.Pod{}
+				p.SetAnnotations(map[string]string{
+					AnnotationKeyManagementPolicy: ManagementPolicyObserve,
+				})
+				return p
+			}(),
+			want: false,
+		},
+		"DeleteManagementPolicyObserve": {
+			action: ActionDelete,
+			o: func() metav1.Object {
+				p := &corev1.Pod{}
+				p.SetAnnotations(map[string]string{
+					AnnotationKeyManagementPolicy: ManagementPolicyObserve,
+				})
+				return p
+			}(),
+			want: false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := IsActionAllowed(tc.o, tc.action)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("IsActionAllowed(...): -want, +got:\n%s", diff)
+			}
+		})
+	}
+}
+
 func EquateErrors() cmp.Option {
 	return cmp.Comparer(func(a, b error) bool {
 		if a == nil || b == nil {

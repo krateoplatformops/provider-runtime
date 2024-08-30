@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/ratelimiter"
+	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -15,16 +15,16 @@ import (
 type Reconciler struct {
 	name  string
 	inner reconcile.Reconciler
-	limit ratelimiter.RateLimiter
+	limit workqueue.TypedRateLimiter[any]
 
 	limited  map[string]struct{}
 	limitedL sync.RWMutex
 }
 
-// NewReconciler wraps the supplied Reconciler, ensuring requests are passed to
+// New wraps the supplied Reconciler, ensuring requests are passed to
 // it no more frequently than the supplied RateLimiter allows. Multiple uniquely
 // named Reconcilers can share the same RateLimiter.
-func NewReconciler(name string, r reconcile.Reconciler, l ratelimiter.RateLimiter) *Reconciler {
+func New(name string, r reconcile.Reconciler, l workqueue.TypedRateLimiter[any]) *Reconciler {
 	return &Reconciler{name: name, inner: r, limit: l, limited: make(map[string]struct{})}
 }
 

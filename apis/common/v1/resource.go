@@ -43,18 +43,3 @@ type ConfigMapKeySelector struct {
 	// The key to select.
 	Key string `json:"key"`
 }
-
-// ManagedStatus represents the observed state of a managed resource.
-type ManagedStatus struct {
-	ConditionedStatus `json:",inline"`
-}
-
-// A ManagedSpec defines the desired state of a managed resource.
-type ManagedSpec struct {
-	// DeletionPolicy specifies what will happen to the underlying external
-	// when this managed resource is deleted - either "Delete" or "Orphan" the
-	// external resource.
-	// +optional
-	// +kubebuilder:default=Delete
-	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
-}

@@ -33,8 +33,9 @@ func TestReconciler(t *testing.T) {
 	}
 
 	type want struct {
-		result reconcile.Result
-		err    error
+		result        reconcile.Result
+		resultCmpOpts []cmp.Option
+		err           error
 	}
 
 	errBoom := errors.New("boom")
@@ -75,13 +76,17 @@ func TestReconciler(t *testing.T) {
 						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 							mg := obj.(*fake.Managed)
 							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionOrphan)
+							mg.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyOrphan,
+							})
 							return nil
 						}),
 						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 							want := &fake.Managed{}
 							want.SetDeletionTimestamp(&now)
-							want.SetDeletionPolicy(prv1.DeletionOrphan)
+							want.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyOrphan,
+							})
 							want.SetConditions(prv1.Deleting())
 							want.SetConditions(prv1.ReconcileError(errBoom))
 							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
@@ -108,7 +113,9 @@ func TestReconciler(t *testing.T) {
 						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 							mg := obj.(*fake.Managed)
 							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionOrphan)
+							mg.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyOrphan,
+							})
 							return nil
 						}),
 					},
@@ -146,28 +153,6 @@ func TestReconciler(t *testing.T) {
 				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
 			},
 			want: want{result: reconcile.Result{Requeue: false}},
-		},
-		"ResolveReferencesError": {
-			reason: "Errors during reference resolution references should trigger a requeue after a short wait.",
-			args: args{
-				m: &fake.Manager{
-					Client: &test.MockClient{
-						MockGet: test.NewMockGetFn(nil),
-						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
-							want := &fake.Managed{}
-							want.SetConditions(prv1.ReconcileError(errBoom))
-							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
-								reason := "Errors during reference resolution should be reported as a conditioned status."
-								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
-							}
-							return nil
-						}),
-					},
-					Scheme: fake.SchemeWith(&fake.Managed{}),
-				},
-				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
-			},
-			want: want{result: reconcile.Result{Requeue: true}},
 		},
 		"ExternalConnectError": {
 			reason: "Errors connecting to the provider should trigger a requeue after a short wait.",
@@ -300,13 +285,17 @@ func TestReconciler(t *testing.T) {
 						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 							mg := obj.(*fake.Managed)
 							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionDelete)
+							mg.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyDelete,
+							})
 							return nil
 						}),
 						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 							want := &fake.Managed{}
 							want.SetDeletionTimestamp(&now)
-							want.SetDeletionPolicy(prv1.DeletionDelete)
+							want.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyDelete,
+							})
 							want.SetConditions(prv1.ReconcileError(errors.Wrap(errBoom, errReconcileDelete)))
 							want.SetConditions(prv1.Deleting())
 							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
@@ -343,13 +332,17 @@ func TestReconciler(t *testing.T) {
 						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 							mg := obj.(*fake.Managed)
 							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionDelete)
+							mg.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyDelete,
+							})
 							return nil
 						}),
 						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 							want := &fake.Managed{}
 							want.SetDeletionTimestamp(&now)
-							want.SetDeletionPolicy(prv1.DeletionDelete)
+							want.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyDelete,
+							})
 							want.SetConditions(prv1.ReconcileSuccess())
 							want.SetConditions(prv1.Deleting())
 							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
@@ -386,13 +379,17 @@ func TestReconciler(t *testing.T) {
 						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 							mg := obj.(*fake.Managed)
 							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionDelete)
+							mg.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyDelete,
+							})
 							return nil
 						}),
 						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 							want := &fake.Managed{}
 							want.SetDeletionTimestamp(&now)
-							want.SetDeletionPolicy(prv1.DeletionDelete)
+							want.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyDelete,
+							})
 							want.SetConditions(prv1.Deleting())
 							want.SetConditions(prv1.ReconcileError(errBoom))
 							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
@@ -427,7 +424,9 @@ func TestReconciler(t *testing.T) {
 						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 							mg := obj.(*fake.Managed)
 							mg.SetDeletionTimestamp(&now)
-							mg.SetDeletionPolicy(prv1.DeletionDelete)
+							mg.SetAnnotations(map[string]string{
+								meta.AnnotationKeyDeletionPolicy: meta.DeletionPolicyDelete,
+							})
 							return nil
 						}),
 					},
@@ -855,6 +854,116 @@ func TestReconciler(t *testing.T) {
 			},
 			want: want{err: errors.Wrap(errBoom, errUpdateManagedStatus)},
 		},
+		"ExternalResourceUpToDateWithJitter": {
+			reason: "When the external resource exists and is up to date a requeue should be triggered after a long wait with jitter added.",
+			args: args{
+				m: &fake.Manager{
+					Client: &test.MockClient{
+						MockGet: test.NewMockGetFn(nil),
+						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, _ client.Object, _ ...client.SubResourceUpdateOption) error {
+							return nil
+						}),
+					},
+					Scheme: fake.SchemeWith(&fake.Managed{}),
+				},
+				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
+				o: []ReconcilerOption{
+					WithExternalConnecter(ExternalConnectorFn(func(_ context.Context, _ resource.Managed) (ExternalClient, error) {
+						c := &ExternalClientFns{
+							ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
+								return ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
+							},
+						}
+						return c, nil
+					})),
+					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
+					WithPollJitterHook(time.Second),
+				},
+			},
+			want: want{
+				result: reconcile.Result{RequeueAfter: defaultpollInterval},
+				resultCmpOpts: []cmp.Option{cmp.Comparer(func(l, r time.Duration) bool {
+					diff := l - r
+					if diff < 0 {
+						diff = -diff
+					}
+					return diff < time.Second
+				})},
+			},
+		},
+		"ExternalResourceUpToDateWithPollIntervalHook": {
+			reason: "When the external resource exists and is up to date a requeue should be triggered after a long wait processed by the interval hook.",
+			args: args{
+				m: &fake.Manager{
+					Client: &test.MockClient{
+						MockGet: test.NewMockGetFn(nil),
+						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, _ client.Object, _ ...client.SubResourceUpdateOption) error {
+							return nil
+						}),
+					},
+					Scheme: fake.SchemeWith(&fake.Managed{}),
+				},
+				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
+				o: []ReconcilerOption{
+					WithExternalConnecter(ExternalConnectorFn(func(_ context.Context, _ resource.Managed) (ExternalClient, error) {
+						c := &ExternalClientFns{
+							ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
+								return ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
+							},
+						}
+						return c, nil
+					})),
+					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
+					WithPollIntervalHook(func(_ resource.Managed, pollInterval time.Duration) time.Duration {
+						return 2 * pollInterval
+					}),
+				},
+			},
+			want: want{
+				result: reconcile.Result{RequeueAfter: 2 * defaultpollInterval},
+			},
+		},
+		"ObserveOnlyResourceDoesNotExist": {
+			reason: "With only Observe management action, observing a resource that does not exist should be reported as a conditioned status error.",
+			args: args{
+				m: &fake.Manager{
+					Client: &test.MockClient{
+						MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
+							mg := obj.(*fake.Managed)
+							mg.SetAnnotations(map[string]string{
+								meta.AnnotationKeyManagementPolicy: meta.ManagementPolicyObserve,
+							})
+							return nil
+						}),
+						MockStatusUpdate: test.MockSubResourceUpdateFn(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
+							want := &fake.Managed{}
+							want.SetAnnotations(map[string]string{
+								meta.AnnotationKeyManagementPolicy: meta.ManagementPolicyObserve,
+							})
+							want.SetConditions(prv1.ReconcileError(errors.Wrap(errors.New(errExternalResourceNotExist), errReconcileObserve)))
+							if diff := cmp.Diff(want, obj, test.EquateConditions()); diff != "" {
+								reason := "Resource does not exist should be reported as a conditioned status when ObserveOnly."
+								t.Errorf("\nReason: %s\n-want, +got:\n%s", reason, diff)
+							}
+							return nil
+						}),
+					},
+					Scheme: fake.SchemeWith(&fake.Managed{}),
+				},
+				mg: resource.ManagedKind(fake.GVK(&fake.Managed{})),
+				o: []ReconcilerOption{
+					WithExternalConnecter(ExternalConnectorFn(func(_ context.Context, _ resource.Managed) (ExternalClient, error) {
+						c := &ExternalClientFns{
+							ObserveFn: func(_ context.Context, _ resource.Managed) (ExternalObservation, error) {
+								return ExternalObservation{ResourceExists: false}, nil
+							},
+						}
+						return c, nil
+					})),
+				},
+			},
+			want: want{result: reconcile.Result{Requeue: true}},
+		},
 	}
 
 	for name, tc := range cases {
@@ -866,7 +975,7 @@ func TestReconciler(t *testing.T) {
 				t.Errorf("\nReason: %s\nr.Reconcile(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
 
-			if diff := cmp.Diff(tc.want.result, got); diff != "" {
+			if diff := cmp.Diff(tc.want.result, got, tc.want.resultCmpOpts...); diff != "" {
 				t.Errorf("\nReason: %s\nr.Reconcile(...): -want, +got:\n%s", tc.reason, diff)
 			}
 		})

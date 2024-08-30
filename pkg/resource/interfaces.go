@@ -15,17 +15,10 @@ type Object interface {
 	runtime.Object
 }
 
-// An Orphanable resource may specify a DeletionPolicy.
-type Orphanable interface {
-	SetDeletionPolicy(p prv1.DeletionPolicy)
-	GetDeletionPolicy() prv1.DeletionPolicy
-}
-
 // A Managed is a Kubernetes object representing a concrete managed
 // resource (e.g. a CloudSQL instance).
 type Managed interface {
 	Object
-	Orphanable
 	Conditioned
 }
 
