@@ -35,15 +35,20 @@ func (r *TypedItemExponentialTimedFailureRateLimiter[T]) When(item T) time.Durat
 	r.failuresLock.Lock()
 	defer r.failuresLock.Unlock()
 
-	if r.failures[item].LastAttempt != (time.Time{}) && time.Since(r.failures[item].LastAttempt) > 2*r.maxDelay {
+	failreq, ok := r.failures[item]
+	if !ok {
+		r.failures[item] = FailureRequest{Attempts: 1, LastAttempt: time.Now()}
+		return r.baseDelay
+	}
+
+	if time.Since(failreq.LastAttempt) > 2*r.maxDelay {
 		return 0
 	}
 
-	exp := r.failures[item].Attempts
-	f := r.failures[item]
-	f.Attempts = f.Attempts + 1
-	f.LastAttempt = time.Now()
-	r.failures[item] = f
+	exp := failreq.Attempts
+	failreq.Attempts = failreq.Attempts + 1
+	failreq.LastAttempt = time.Now()
+	r.failures[item] = failreq
 
 	// The backoff is capped such that 'calculated' value never overflows.
 	backoff := float64(r.baseDelay.Nanoseconds()) * math.Pow(2, float64(exp))
@@ -70,7 +75,7 @@ func (r *TypedItemExponentialTimedFailureRateLimiter[T]) Forget(item T) {
 	r.failuresLock.Lock()
 	defer r.failuresLock.Unlock()
 
-	if r.failures[item].LastAttempt != (time.Time{}) && time.Since(r.failures[item].LastAttempt) > 2*r.maxDelay {
+	if time.Since(r.failures[item].LastAttempt) > 2*r.maxDelay {
 		delete(r.failures, item)
 	}
 
