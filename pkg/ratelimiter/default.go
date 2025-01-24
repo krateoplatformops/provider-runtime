@@ -4,6 +4,7 @@ package ratelimiter
 import (
 	"time"
 
+	internal_workqueue "github.com/krateoplatformops/provider-runtime/pkg/workqueue"
 	"golang.org/x/time/rate"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
@@ -14,6 +15,10 @@ import (
 // controller manager. The bucket size (i.e. allowed burst) is rps * 10.
 func NewGlobal(rps int) *workqueue.TypedBucketRateLimiter[any] {
 	return &workqueue.TypedBucketRateLimiter[any]{Limiter: rate.NewLimiter(rate.Limit(rps), rps*10)}
+}
+
+func NewGlobalExponential(baseDelay time.Duration, maxDelay time.Duration) workqueue.TypedRateLimiter[any] {
+	return internal_workqueue.NewExponentialTimedFailureRateLimiter[any](baseDelay, maxDelay)
 }
 
 // NewController returns a rate limiter that takes the maximum delay between the
