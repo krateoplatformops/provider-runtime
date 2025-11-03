@@ -11,6 +11,8 @@ import (
 
 var _ client.Client = &MockClient{}
 
+type MockApplyFn func(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error
+
 // A MockGetFn is used to mock client.Client's Get implementation.
 type MockGetFn func(ctx context.Context, key client.ObjectKey, obj client.Object) error
 
@@ -216,6 +218,17 @@ func NewMockIsObjectNamespacedFn(err error, isNamespaced bool, rofn ...RuntimeOb
 	}
 }
 
+func NewMockApplyFn(err error, ofn ...ObjectFn) MockApplyFn {
+	return func(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+		for _, fn := range ofn {
+			if err := fn(obj.(client.Object)); err != nil {
+				return err
+			}
+		}
+		return err
+	}
+}
+
 // MockClient implements controller-runtime's Client interface, allowing each
 // method to be overridden for testing. The controller-runtime provides a fake
 // client, but it is has surprising side effects (e.g. silently calling
@@ -241,6 +254,7 @@ type MockClient struct {
 	MockScheme              MockSchemeFn
 	MockGroupVersionKindFor MockGroupVersionKindForFn
 	MockIsObjectNamespaced  MockIsObjectNamespacedFn
+	MockApply               MockApplyFn
 }
 
 // NewMockClient returns a MockClient that does nothing when its methods are
@@ -261,7 +275,13 @@ func NewMockClient() *MockClient {
 		MockScheme:              NewMockSchemeFn(nil),
 		MockGroupVersionKindFor: NewMockGroupVersionKindForFn(nil, schema.GroupVersionKind{}),
 		MockIsObjectNamespaced:  NewMockIsObjectNamespacedFn(nil, false),
+		MockApply:               NewMockApplyFn(nil),
 	}
+}
+
+// Apply calls MockClient's MockApply function.
+func (c *MockClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	return c.MockApply(ctx, obj, opts...)
 }
 
 // Get calls MockClient's MockGet function.
