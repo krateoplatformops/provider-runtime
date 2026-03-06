@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/krateoplatformops/plumbing/kubeutil/event"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -13,7 +14,6 @@ import (
 
 	prv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
 	"github.com/krateoplatformops/provider-runtime/pkg/errors"
-	"github.com/krateoplatformops/provider-runtime/pkg/event"
 	"github.com/krateoplatformops/provider-runtime/pkg/logging"
 	"github.com/krateoplatformops/provider-runtime/pkg/meta"
 	"github.com/krateoplatformops/provider-runtime/pkg/resource"
@@ -66,6 +66,22 @@ const (
 	reasonPending event.Reason = "PendingExternalResource"
 
 	reasonReconciliationPaused event.Reason = "ReconciliationPaused"
+)
+
+// Event actions.
+const (
+	actionProcessEvent            event.Action = "ProcessEvent"
+	actionCreateEvent             event.Action = "CreateEvent"
+	actionUpdateEvent             event.Action = "UpdateEvent"
+	actionDeleteEvent             event.Action = "DeleteEvent"
+	actionObserveEvent            event.Action = "ObserveEvent"
+	actionCreateExternalResource  event.Action = "CreateExternalResource"
+	actionUpdateExternalResource  event.Action = "UpdateExternalResource"
+	actionDeleteExternalResource  event.Action = "DeleteExternalResource"
+	actionObserveExternalResource event.Action = "ObserveExternalResource"
+
+	actionFetchManagedResource  event.Action = "FetchManagedResource"
+	actionUpdateManagedResource event.Action = "UpdateManagedResource"
 )
 
 // ControllerName returns the recommended name for controllers that use this
@@ -515,7 +531,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, errors.Wrap(resource.IgnoreNotFound(err), errGetManaged)
 	}
 
-	record := r.record.WithAnnotations("external-name", meta.GetExternalName(managed))
+	record := r.record
 	log = log.WithValues(
 		"uid", managed.GetUID(),
 		"version", managed.GetResourceVersion(),
@@ -526,7 +542,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// after logging, publishing an event and updating the SYNC status condition
 	if meta.IsPaused(managed) {
 		log.Debug("Reconciliation is paused via the pause annotation", "annotation", meta.AnnotationKeyReconciliationPaused, "value", "true")
-		record.Event(managed, event.Normal(reasonReconciliationPaused, "Reconciliation is paused via the pause annotation"))
+		record.Event(managed, event.Normal(reasonReconciliationPaused, actionProcessEvent, "Reconciliation is paused via the pause annotation"))
 		managed.SetConditions(prv1.ReconcilePaused())
 		// if the pause annotation is removed, we will have a chance to reconcile again and resume
 		// and if status update fails, we will reconcile again to retry to update the status
@@ -566,7 +582,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// do is to refuse to proceed.
 	if meta.ExternalCreateIncomplete(managed) {
 		log.Warn(errCreateIncomplete)
-		record.Event(managed, event.Warning(reasonCannotInitialize, errors.New(errCreateIncomplete)))
+		record.Event(managed, event.Warning(reasonCannotInitialize, actionProcessEvent, errors.New(errCreateIncomplete)))
 		managed.SetConditions(prv1.Creating(), prv1.ReconcileError(errors.New(errCreateIncomplete)))
 		return reconcile.Result{Requeue: false}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
@@ -582,14 +598,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if kerrors.IsConflict(err) {
 			return reconcile.Result{Requeue: true}, nil
 		}
-		record.Event(managed, event.Warning(reasonCannotConnect, err))
+		record.Event(managed, event.Warning(reasonCannotConnect, actionProcessEvent, err))
 		managed.SetConditions(prv1.ReconcileError(errors.Wrap(err, errReconcileConnect)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 	defer func() {
 		if err := r.external.Disconnect(ctx); err != nil {
 			log.Error(err, "Cannot disconnect from provider")
-			record.Event(managed, event.Warning(reasonCannotDisconnect, err))
+			record.Event(managed, event.Warning(reasonCannotDisconnect, actionProcessEvent, err))
 		}
 	}()
 
@@ -605,7 +621,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if kerrors.IsConflict(err) {
 			return reconcile.Result{Requeue: true}, nil
 		}
-		record.Event(managed, event.Warning(reasonCannotObserve, err))
+		record.Event(managed, event.Warning(reasonCannotObserve, actionObserveExternalResource, err))
 		managed.SetConditions(prv1.ReconcileError(errors.Wrap(err, errReconcileObserve)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
@@ -613,7 +629,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// In the observe-only mode, !observation.ResourceExists will be an error
 	// case, and we will explicitly return this information to the user.
 	if !observation.ResourceExists && meta.ShouldOnlyObserve(managed) {
-		record.Event(managed, event.Warning(reasonCannotObserve, errors.New(errExternalResourceNotExist)))
+		record.Event(managed, event.Warning(reasonCannotObserve, actionObserveExternalResource, errors.New(errExternalResourceNotExist)))
 		managed.SetConditions(prv1.ReconcileError(errors.Wrap(errors.New(errExternalResourceNotExist), errReconcileObserve)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
@@ -625,7 +641,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// exist.
 	if !observation.ResourceExists && meta.ExternalCreateSucceededDuring(managed, r.creationGracePeriod) {
 		log.Debug("Waiting for external resource existence to be confirmed")
-		record.Event(managed, event.Normal(reasonPending, "Waiting for external resource existence to be confirmed"))
+		record.Event(managed, event.Normal(reasonPending, actionProcessEvent, "Waiting for external resource existence to be confirmed"))
 		return reconcile.Result{Requeue: true}, nil
 	}
 
@@ -643,7 +659,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				// status with the new error condition. If not, we want requeue
 				// explicitly, which will trigger backoff.
 				log.Error(err, "Cannot delete external resource")
-				record.Event(managed, event.Warning(reasonCannotDelete, err))
+				record.Event(managed, event.Warning(reasonCannotDelete, actionDeleteExternalResource, err))
 				managed.SetConditions(prv1.Deleting(), prv1.ReconcileError(errors.Wrap(err, errReconcileDelete)))
 				return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 			}
@@ -656,7 +672,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			// unpublish and finalize. If it still exists we'll re-enter this
 			// block and try again.
 			log.Info("Successfully requested deletion of external resource")
-			record.Event(managed, event.Normal(reasonDeleted, "Successfully requested deletion of external resource"))
+			record.Event(managed, event.Normal(reasonDeleted, actionDeleteEvent, "Successfully requested deletion of external resource"))
 			managed.SetConditions(prv1.Deleting(), prv1.ReconcileSuccess())
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
@@ -708,7 +724,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			if kerrors.IsConflict(err) {
 				return reconcile.Result{Requeue: true}, nil
 			}
-			record.Event(managed, event.Warning(reasonCannotUpdateManaged, errors.Wrap(err, errUpdateManaged)))
+			record.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, errors.Wrap(err, errUpdateManaged)))
 			managed.SetConditions(prv1.Creating(), prv1.ReconcileError(errors.Wrap(err, errUpdateManaged)))
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
@@ -724,7 +740,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			if kerrors.IsConflict(err) {
 				return reconcile.Result{Requeue: true}, nil
 			}
-			record.Event(managed, event.Warning(reasonCannotCreate, err))
+			record.Event(managed, event.Warning(reasonCannotCreate, actionCreateExternalResource, err))
 
 			// We handle annotations specially here because it's
 			// critical that they are persisted to the API server.
@@ -735,7 +751,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			meta.SetExternalCreateFailed(managed, time.Now())
 			if err := r.managed.UpdateCriticalAnnotations(ctx, managed); err != nil {
 				log.Error(err, errUpdateManagedAnnotations)
-				record.Event(managed, event.Warning(reasonCannotUpdateManaged, errors.Wrap(err, errUpdateManagedAnnotations)))
+				record.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, errors.Wrap(err, errUpdateManagedAnnotations)))
 
 				// We only log and emit an event here rather
 				// than setting a status condition and returning
@@ -750,7 +766,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 		// In some cases our external-name may be set by Create above.
 		log = log.WithValues("external-name", meta.GetExternalName(managed))
-		record = r.record.WithAnnotations("external-name", meta.GetExternalName(managed))
+		record = r.record
 
 		// We handle annotations specially here because it's critical
 		// that they are persisted to the API server. If we don't remove
@@ -765,7 +781,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		meta.SetExternalCreateSucceeded(managed, time.Now())
 		if err := r.managed.UpdateCriticalAnnotations(ctx, managed); err != nil {
 			log.Error(err, errUpdateManagedAnnotations)
-			record.Event(managed, event.Warning(reasonCannotUpdateManaged, errors.Wrap(err, errUpdateManagedAnnotations)))
+			record.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, errors.Wrap(err, errUpdateManagedAnnotations)))
 			managed.SetConditions(prv1.Creating(), prv1.ReconcileError(errors.Wrap(err, errUpdateManagedAnnotations)))
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
@@ -775,7 +791,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// order to observe the external resource to determine whether it's
 		// ready for use.
 		log.Info("Successfully requested creation of external resource")
-		record.Event(managed, event.Normal(reasonCreated, "Successfully requested creation of external resource"))
+		record.Event(managed, event.Normal(reasonCreated, actionCreateEvent, "Successfully requested creation of external resource"))
 		managed.SetConditions(prv1.Creating(), prv1.ReconcileSuccess())
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
@@ -790,7 +806,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// and persist its status.
 		if err := r.client.Update(ctx, managed); err != nil {
 			log.Error(err, "Cannot update managed resource")
-			record.Event(managed, event.Warning(reasonCannotUpdateManaged, err))
+			record.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, err))
 			managed.SetConditions(prv1.ReconcileError(errors.Wrap(err, errUpdateManaged)))
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
@@ -829,7 +845,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// requeued implicitly when we update our status with the new error
 		// condition. If not, we requeue explicitly, which will trigger backoff.
 		log.Error(err, "Cannot update external resource")
-		record.Event(managed, event.Warning(reasonCannotUpdate, err))
+		record.Event(managed, event.Warning(reasonCannotUpdate, actionUpdateExternalResource, err))
 		managed.SetConditions(prv1.ReconcileError(errors.Wrap(err, errReconcileUpdate)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
@@ -841,7 +857,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// https://github.com/crossplane/crossplane/issues/289
 	reconcileAfter := r.pollIntervalHook(managed, r.pollInterval)
 	log.Info("Successfully requested update of external resource", "requeue-after", time.Now().Add(reconcileAfter))
-	record.Event(managed, event.Normal(reasonUpdated, "Successfully requested update of external resource"))
+	record.Event(managed, event.Normal(reasonUpdated, actionUpdateEvent, "Successfully requested update of external resource"))
 	managed.SetConditions(prv1.ReconcileSuccess())
 	return reconcile.Result{RequeueAfter: reconcileAfter}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 }
