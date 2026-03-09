@@ -3,11 +3,11 @@ package reconciler
 import (
 	"context"
 
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/krateoplatformops/provider-runtime/pkg/errors"
 	"github.com/krateoplatformops/provider-runtime/pkg/meta"
 	"github.com/krateoplatformops/provider-runtime/pkg/resource"
 )
