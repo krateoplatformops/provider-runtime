@@ -337,8 +337,9 @@ type Reconciler struct {
 	external mrExternal
 	managed  mrManaged
 
-	log    logging.Logger
-	record event.Recorder
+	log               logging.Logger
+	record            event.Recorder
+	throttledRecorder event.Recorder
 }
 
 type mrManaged struct {
@@ -476,6 +477,13 @@ func WithRecorder(er event.Recorder) ReconcilerOption {
 	}
 }
 
+// WithThrottledRecorder specifies a separate event recorder for events that are emitted when an error is encountered during reconciliation. This allows users of the Reconciler to choose to emit these events at a different level (e.g. Warning instead of Normal) without having to use the same level for all events. Defaults to the same recorder as the one set by WithRecorder if not specified.
+func WithThrottledRecorder(er event.Recorder) ReconcilerOption {
+	return func(r *Reconciler) {
+		r.throttledRecorder = er
+	}
+}
+
 // NewReconciler returns a Reconciler that reconciles managed resources of the
 // supplied ManagedKind with resources in an external system such as a cloud
 // provider API. It panics if asked to reconcile a managed resource kind that is
@@ -509,6 +517,11 @@ func NewReconciler(m manager.Manager, of resource.ManagedKind, o ...ReconcilerOp
 		ro(r)
 	}
 
+	// Default the throttled recorder to the same recorder as the main recorder if it wasn't explicitly set by the caller.
+	if r.throttledRecorder == nil {
+		r.throttledRecorder = r.record
+	}
+
 	return r
 }
 
@@ -532,6 +545,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	record := r.record
+	throttledRecorder := r.throttledRecorder
 	log = log.WithValues(
 		"uid", managed.GetUID(),
 		"version", managed.GetResourceVersion(),
@@ -582,7 +596,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// do is to refuse to proceed.
 	if meta.ExternalCreateIncomplete(managed) {
 		log.Warn(errCreateIncomplete)
-		record.Event(managed, event.Warning(reasonCannotInitialize, actionProcessEvent, errors.New(errCreateIncomplete)))
+		throttledRecorder.Event(managed, event.Warning(reasonCannotInitialize, actionProcessEvent, errors.New(errCreateIncomplete)))
 		managed.SetConditions(prv1.Creating(), prv1.ReconcileError(errors.New(errCreateIncomplete)))
 		return reconcile.Result{Requeue: false}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
@@ -598,14 +612,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if kerrors.IsConflict(err) {
 			return reconcile.Result{Requeue: true}, nil
 		}
-		record.Event(managed, event.Warning(reasonCannotConnect, actionProcessEvent, err))
+		throttledRecorder.Event(managed, event.Warning(reasonCannotConnect, actionProcessEvent, err))
 		managed.SetConditions(prv1.ReconcileError(errors.Wrap(err, errReconcileConnect)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 	defer func() {
 		if err := r.external.Disconnect(ctx); err != nil {
 			log.Error(err, "Cannot disconnect from provider")
-			record.Event(managed, event.Warning(reasonCannotDisconnect, actionProcessEvent, err))
+			throttledRecorder.Event(managed, event.Warning(reasonCannotDisconnect, actionProcessEvent, err))
 		}
 	}()
 
@@ -621,7 +635,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if kerrors.IsConflict(err) {
 			return reconcile.Result{Requeue: true}, nil
 		}
-		record.Event(managed, event.Warning(reasonCannotObserve, actionObserveExternalResource, err))
+		throttledRecorder.Event(managed, event.Warning(reasonCannotObserve, actionObserveExternalResource, err))
 		managed.SetConditions(prv1.ReconcileError(errors.Wrap(err, errReconcileObserve)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
@@ -629,7 +643,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// In the observe-only mode, !observation.ResourceExists will be an error
 	// case, and we will explicitly return this information to the user.
 	if !observation.ResourceExists && meta.ShouldOnlyObserve(managed) {
-		record.Event(managed, event.Warning(reasonCannotObserve, actionObserveExternalResource, errors.New(errExternalResourceNotExist)))
+		throttledRecorder.Event(managed, event.Warning(reasonCannotObserve, actionObserveExternalResource, errors.New(errExternalResourceNotExist)))
 		managed.SetConditions(prv1.ReconcileError(errors.Wrap(errors.New(errExternalResourceNotExist), errReconcileObserve)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
@@ -659,7 +673,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				// status with the new error condition. If not, we want requeue
 				// explicitly, which will trigger backoff.
 				log.Error(err, "Cannot delete external resource")
-				record.Event(managed, event.Warning(reasonCannotDelete, actionDeleteExternalResource, err))
+				throttledRecorder.Event(managed, event.Warning(reasonCannotDelete, actionDeleteExternalResource, err))
 				managed.SetConditions(prv1.Deleting(), prv1.ReconcileError(errors.Wrap(err, errReconcileDelete)))
 				return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 			}
@@ -724,7 +738,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			if kerrors.IsConflict(err) {
 				return reconcile.Result{Requeue: true}, nil
 			}
-			record.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, errors.Wrap(err, errUpdateManaged)))
+			throttledRecorder.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, errors.Wrap(err, errUpdateManaged)))
 			managed.SetConditions(prv1.Creating(), prv1.ReconcileError(errors.Wrap(err, errUpdateManaged)))
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
@@ -740,7 +754,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			if kerrors.IsConflict(err) {
 				return reconcile.Result{Requeue: true}, nil
 			}
-			record.Event(managed, event.Warning(reasonCannotCreate, actionCreateExternalResource, err))
+			throttledRecorder.Event(managed, event.Warning(reasonCannotCreate, actionCreateExternalResource, err))
 
 			// We handle annotations specially here because it's
 			// critical that they are persisted to the API server.
@@ -751,7 +765,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			meta.SetExternalCreateFailed(managed, time.Now())
 			if err := r.managed.UpdateCriticalAnnotations(ctx, managed); err != nil {
 				log.Error(err, errUpdateManagedAnnotations)
-				record.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, errors.Wrap(err, errUpdateManagedAnnotations)))
+				throttledRecorder.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, errors.Wrap(err, errUpdateManagedAnnotations)))
 
 				// We only log and emit an event here rather
 				// than setting a status condition and returning
@@ -781,7 +795,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		meta.SetExternalCreateSucceeded(managed, time.Now())
 		if err := r.managed.UpdateCriticalAnnotations(ctx, managed); err != nil {
 			log.Error(err, errUpdateManagedAnnotations)
-			record.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, errors.Wrap(err, errUpdateManagedAnnotations)))
+			throttledRecorder.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, errors.Wrap(err, errUpdateManagedAnnotations)))
 			managed.SetConditions(prv1.Creating(), prv1.ReconcileError(errors.Wrap(err, errUpdateManagedAnnotations)))
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
@@ -806,7 +820,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// and persist its status.
 		if err := r.client.Update(ctx, managed); err != nil {
 			log.Error(err, "Cannot update managed resource")
-			record.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, err))
+			throttledRecorder.Event(managed, event.Warning(reasonCannotUpdateManaged, actionUpdateExternalResource, err))
 			managed.SetConditions(prv1.ReconcileError(errors.Wrap(err, errUpdateManaged)))
 			return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 		}
@@ -845,7 +859,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// requeued implicitly when we update our status with the new error
 		// condition. If not, we requeue explicitly, which will trigger backoff.
 		log.Error(err, "Cannot update external resource")
-		record.Event(managed, event.Warning(reasonCannotUpdate, actionUpdateExternalResource, err))
+		throttledRecorder.Event(managed, event.Warning(reasonCannotUpdate, actionUpdateExternalResource, err))
 		managed.SetConditions(prv1.ReconcileError(errors.Wrap(err, errReconcileUpdate)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
