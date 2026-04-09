@@ -1,15 +1,15 @@
 module github.com/krateoplatformops/provider-runtime
 
-go 1.25.3
+go 1.25.6
 
 require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
-	github.com/krateoplatformops/plumbing v1.3.1
+	github.com/krateoplatformops/plumbing v1.7.1
 	golang.org/x/time v0.12.0
-	k8s.io/api v0.35.2
-	k8s.io/apimachinery v0.35.2
-	k8s.io/client-go v0.35.2
+	k8s.io/api v0.35.3
+	k8s.io/apimachinery v0.35.3
+	k8s.io/client-go v0.35.3
 	sigs.k8s.io/controller-runtime v0.23.3
 	sigs.k8s.io/controller-tools v0.20.1
 )
