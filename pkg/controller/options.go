@@ -37,12 +37,34 @@ type Options struct {
 
 	// MaxConcurrentReconciles for each controller.
 	MaxConcurrentReconciles int
+
+	// UsePriorityQueue controls whether controller-runtime should use its
+	// priority queue implementation when queue wait telemetry is enabled.
+	// Defaults to true.
+	UsePriorityQueue *bool
+
+	// QueueWaitRecorder records how long requests spend waiting in the
+	// controller queue before a worker starts processing them.
+	QueueWaitRecorder QueueWaitRecorder
 }
 
 // ForControllerRuntime extracts options for controller-runtime.
 func (o Options) ForControllerRuntime() controller.Options {
-	return controller.TypedOptions[reconcile.Request]{
+	controllerOptions := controller.TypedOptions[reconcile.Request]{
 		MaxConcurrentReconciles: o.MaxConcurrentReconciles,
 		RateLimiter:             workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Second, 60*time.Second),
 	}
+
+	if o.QueueWaitRecorder != nil {
+		usePriorityQueue := true
+		if o.UsePriorityQueue != nil {
+			usePriorityQueue = *o.UsePriorityQueue
+		}
+
+		controllerOptions.NewQueue = func(controllerName string, rateLimiter workqueue.TypedRateLimiter[reconcile.Request]) workqueue.TypedRateLimitingInterface[reconcile.Request] {
+			return newQueueWithWaitMetrics(controllerName, rateLimiter, usePriorityQueue, o.QueueWaitRecorder)
+		}
+	}
+
+	return controllerOptions
 }

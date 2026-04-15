@@ -103,7 +103,7 @@ func TestReconciler(t *testing.T) {
 					WithFinalizer(resource.FinalizerFns{RemoveFinalizerFn: func(_ context.Context, _ resource.Object) error { return errBoom }}),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errUpdateManagedStatus)},
 		},
 		"DeleteSuccessfulDeletionPolicyOrphan": {
 			reason: "Successful managed resource deletion with deletion policy Orphan should not trigger a requeue or status update.",
@@ -179,7 +179,7 @@ func TestReconciler(t *testing.T) {
 					})),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errReconcileConnect)},
 		},
 		"ExternalDisconnectError": {
 			reason: "Error disconnecting from the provider should not trigger requeue.",
@@ -248,7 +248,7 @@ func TestReconciler(t *testing.T) {
 					})),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errReconcileObserve)},
 		},
 		"CreationGracePeriod": {
 			reason: "If our resource appears not to exist during the creation grace period we should return early.",
@@ -322,7 +322,7 @@ func TestReconciler(t *testing.T) {
 					})),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errReconcileDelete)},
 		},
 		"ExternalDeleteSuccessful": {
 			reason: "A deleted managed resource with the 'delete' reclaim policy should delete its external resource then requeue after a short wait.",
@@ -414,7 +414,7 @@ func TestReconciler(t *testing.T) {
 					WithFinalizer(resource.FinalizerFns{RemoveFinalizerFn: func(_ context.Context, _ resource.Object) error { return errBoom }}),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errUpdateManagedStatus)},
 		},
 		"DeleteSuccessfulDeletionPolicyDelete": {
 			reason: "Successful managed resource deletion with deletion policy Delete should not trigger a requeue or status update.",
@@ -471,7 +471,7 @@ func TestReconciler(t *testing.T) {
 					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return errBoom }}),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errCreateIncomplete)},
 		},
 		"UpdateCreatePendingError": {
 			reason: "Errors while updating our external-create-pending annotation should trigger a requeue after a short wait.",
@@ -509,7 +509,7 @@ func TestReconciler(t *testing.T) {
 					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errUpdateManaged)},
 		},
 		"CreateExternalError": {
 			reason: "Errors while creating an external resource should trigger a requeue after a short wait.",
@@ -552,7 +552,7 @@ func TestReconciler(t *testing.T) {
 					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errReconcileCreate)},
 		},
 		"UpdateCriticalAnnotationsError": {
 			reason: "Errors updating critical annotations after creation should trigger a requeue after a short wait.",
@@ -593,7 +593,7 @@ func TestReconciler(t *testing.T) {
 					WithCriticalAnnotationUpdater(CriticalAnnotationUpdateFn(func(ctx context.Context, o client.Object) error { return errBoom })),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errUpdateManagedAnnotations)},
 		},
 		"CreateSuccessful": {
 			reason: "Successful managed resource creation should trigger a requeue after a short wait.",
@@ -658,7 +658,7 @@ func TestReconciler(t *testing.T) {
 					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errUpdateManaged)},
 		},
 		"ExternalResourceUpToDate": {
 			reason: "When the external resource exists and is up to date a requeue should be triggered after a long wait.",
@@ -727,7 +727,7 @@ func TestReconciler(t *testing.T) {
 					WithFinalizer(resource.FinalizerFns{AddFinalizerFn: func(_ context.Context, _ resource.Object) error { return nil }}),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errBoom, errReconcileUpdate)},
 		},
 		"UpdateSuccessful": {
 			reason: "A successful managed resource update should trigger a requeue after a long wait.",
@@ -962,7 +962,7 @@ func TestReconciler(t *testing.T) {
 					})),
 				},
 			},
-			want: want{result: reconcile.Result{Requeue: true}},
+			want: want{err: errors.Wrap(errors.New(errExternalResourceNotExist), errReconcileObserve)},
 		},
 	}
 
