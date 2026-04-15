@@ -881,7 +881,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (resu
 			record.Event(managed, event.Normal(reasonDeleted, actionDeleteEvent, "Successfully requested deletion of external resource"))
 			managed.SetConditions(prv1.Deleting(), prv1.ReconcileSuccess())
 			if err := statusUpdate(func() error { return r.client.Status().Update(ctx, managed) }); err != nil {
-				return reconcile.Result{Requeue: true}, errors.Wrap(err, errUpdateManagedStatus)
+				return reconcile.Result{}, errors.Wrap(err, errUpdateManagedStatus)
 			}
 			return reconcile.Result{Requeue: true}, nil
 		}
@@ -1026,7 +1026,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (resu
 		record.Event(managed, event.Normal(reasonCreated, actionCreateEvent, "Successfully requested creation of external resource"))
 		managed.SetConditions(prv1.Creating(), prv1.ReconcileSuccess())
 		if err := statusUpdate(func() error { return r.client.Status().Update(ctx, managed) }); err != nil {
-			return reconcile.Result{Requeue: true}, errors.Wrap(err, errUpdateManagedStatus)
+			return reconcile.Result{}, errors.Wrap(err, errUpdateManagedStatus)
 		}
 		return reconcile.Result{Requeue: true}, nil
 	}
