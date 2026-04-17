@@ -102,7 +102,7 @@ func Setup(ctx context.Context, log logging.Logger, cfg Config) (*Metrics, func(
 	}
 
 	res, err := resource.Merge(resource.Default(),
-		resource.NewSchemaless(attribute.String("service.name", serviceName)))
+		resource.NewSchemaless())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -324,14 +324,23 @@ func (m *Metrics) IncReconcileFailure(ctx context.Context) {
 }
 
 func (m *Metrics) IncReconcileRequeueAfter(ctx context.Context) {
+	if m == nil {
+		return
+	}
 	m.recordRequeue(ctx, "after", m.reconcileRequeueAfter)
 }
 
 func (m *Metrics) IncReconcileRequeueImmediate(ctx context.Context) {
+	if m == nil {
+		return
+	}
 	m.recordRequeue(ctx, "immediate", m.reconcileRequeueImmediate)
 }
 
 func (m *Metrics) IncReconcileErrorRequeue(ctx context.Context) {
+	if m == nil {
+		return
+	}
 	m.recordRequeue(ctx, "error", m.reconcileErrorRequeue)
 }
 
