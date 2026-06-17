@@ -20,7 +20,7 @@ This same appendix appears in the **unstructured-runtime** developer guide.
 | Standard conditions | `Ready` and `Synced`, with the same reasons | the same |
 | Pause | a paused annotation short-circuits to a paused condition | the same |
 | Create safety | pending / succeeded / failed create-tracking, plus a grace period | the same tracking |
-| Management / deletion policy | annotation-driven | the same annotations |
+| Lifecycle policies | the loop may skip operations or orphan on delete | the same |
 | Type resolution | scheme / RESTMapper (compile-time types) | runtime pluralization |
 | Event recorder, logger | shared Krateo helpers | the same |
 | Origin | trimmed fork of crossplane-runtime's managed reconciler | the dynamic analog of the same lifecycle |

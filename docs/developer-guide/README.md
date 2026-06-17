@@ -6,7 +6,7 @@ A contributor-facing guide to the library that gives Krateo's **typed** provider
 
 ## What it is
 
-`provider-runtime` implements the **managed-resource controller pattern** for Krateo providers (core-provider, git-provider, github-provider, and others). A provider author defines a typed custom resource, implements a handful of operations, and wires a reconciler into a manager. The library owns the reconcile loop: finalizers, the safety steps around creating an external resource, the `Ready`/`Synced` conditions, pause and management/deletion policies, requeue and rate-limiting, and optional metrics.
+`provider-runtime` implements the **managed-resource controller pattern** for Krateo providers (core-provider, git-provider, github-provider, and others). A provider author defines a typed custom resource, implements a handful of operations, and wires a reconciler into a manager. The library owns the reconcile loop: finalizers, the safety steps around creating an external resource, the `Ready`/`Synced` conditions, pause, requeue and rate-limiting, and optional metrics.
 
 It is a **trimmed, rebranded fork of crossplane-runtime**, with Krateo-specific conventions (its own annotation prefix and finalizer, a shared event recorder) and the removal of crossplane's provider-config and connection-detail machinery. See [`01-mental-model.md`](./01-mental-model.md).
 

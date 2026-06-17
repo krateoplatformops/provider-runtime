@@ -32,3 +32,25 @@ The loop runs in a fixed order on every reconcile. The order is the important pa
 Two behaviors run through nearly every step: conditions and status are **persisted after each branch**, and a **conflict is treated as a requeue, not an error** (so concurrent writers simply retry). Mirror that conflict handling in any custom finalizer or updater you add.
 
 > Constructing the reconciler requires the resource's kind to be registered in the manager's scheme — if it isn't, construction fails immediately rather than misbehaving later. Register your scheme before wiring the reconciler.
+
+## Management and deletion policies
+
+Two annotations on the managed resource let an operator narrow what the loop is allowed to do. They're set by whoever applies the resource, but they directly decide **which of your operations the loop actually calls** — so it matters when you're building a provider (don't assume your `Create` runs just because the resource is missing).
+
+**Management policy** — the annotation `krateo.io/management-policy` — gates the allowed actions:
+
+| Value | Observe | Create | Update | Delete |
+| --- | :---: | :---: | :---: | :---: |
+| `default` (when the annotation is absent) | ✓ | ✓ | ✓ | ✓ |
+| `observe-create-update` | ✓ | ✓ | ✓ | — |
+| `observe-delete` | ✓ | — | — | ✓ |
+| `observe` | ✓ | — | — | — |
+
+`default` is full management. `observe` is the read-only case — the resource is owned by something else and the loop only observes it. Under any non-`default` value, the disallowed operations are simply never invoked, even if `Observe` reports the resource as missing or drifted.
+
+**Deletion policy** — the annotation `krateo.io/deletion-policy` — decides what happens to the *external* resource when the managed resource is deleted:
+
+- `delete` (the default when absent) — the external resource is deleted too.
+- `orphan` — the external resource is left in place.
+
+**How they combine on delete.** When the managed resource is being deleted, the loop deletes the external resource only when the management policy permits it **and** the deletion policy asks for it — concretely, when management is `default` and deletion is `delete` (the default), or when management is `observe-delete`. In every other case the external resource is orphaned. One subtlety to keep in mind: `observe-delete` deletes regardless of the deletion policy.
